@@ -55,9 +55,15 @@ namespace MyApps
         // NEW: FlowLayoutPanels untuk menampung grup tombol (untuk di-toggle)
         private FlowLayoutPanel toolsLayout, colorLayout, analysisLayout;
         private Button btnToggleTools, btnToggleColor, btnToggleAnalysis;
+        private FlowLayoutPanel logicalLayout;
+        private Button btnToggleLogical;
+        private Button btnAnd, btnOr, btnXor, btnNot;
 
         // NEW: Definisi Enum untuk Operasi Matematika - DIUBAH MENJADI PUBLIC
         public enum MathOperation { Add, Multiply, Divide }
+
+        // NEW: Definisi Enum untuk Operasi Logika
+        public enum LogicalOperation { AND, OR, XOR, NOT }
 
 
 
@@ -322,7 +328,26 @@ namespace MyApps
             buttonLayout.Controls.Add(btnToggleNumeric);
             buttonLayout.Controls.Add(numericLayout);
 
+            // --- 5. LOGICAL OPERATIONS ---
+            btnToggleLogical = CreateToggleButton("🔣 LOGICAL OPERATIONS", false);
+            logicalLayout = CreateCollapsedPanel();
+            btnAnd = CreateButton("AND", Colors.DarkTertiary, false);
+            btnOr = CreateButton("OR", Colors.DarkTertiary, false);
+            btnXor = CreateButton("XOR", Colors.DarkTertiary, false);
+            btnNot = CreateButton("NOT (Negasi)", Colors.DarkTertiary, false);
+ 
+            btnAnd.Click += (s, e) => BtnLogicalOperation_Click(LogicalOperation.AND);
+            btnOr.Click += (s, e) => BtnLogicalOperation_Click(LogicalOperation.OR);
+            btnXor.Click += (s, e) => BtnLogicalOperation_Click(LogicalOperation.XOR);
+            btnNot.Click += (s, e) => ApplyLogicalNot(); // Panggil langsung fungsi NOT
+ 
+            logicalLayout.Controls.AddRange(new Control[] { btnAnd, btnOr, btnXor, btnNot });
+            btnToggleLogical.Click += (s, e) => TogglePanelVisibility(logicalLayout, btnToggleLogical);
             
+            // Tambahkan ke layout utama SETELAH dibuat
+            buttonLayout.Controls.Add(btnToggleLogical);
+            buttonLayout.Controls.Add(logicalLayout);
+
 
             colorLayout.Controls.Add(btnBlackWhite);
             sidebar.Controls.Add(buttonLayout);
@@ -747,6 +772,11 @@ namespace MyApps
             btnDivideImage.Enabled = enabled;
             btnAnalyzeDivision.Enabled = enabled;
             btnAnalyzeMultiplication.Enabled = enabled;
+            // Aktifkan tombol logika
+            btnAnd.Enabled = enabled;
+            btnOr.Enabled = enabled;
+            btnXor.Enabled = enabled;
+            btnNot.Enabled = enabled;
 
             lblInfo.Text = enabled ? "Image loaded. Ready for processing." : "Ready";
         }
@@ -2299,6 +2329,142 @@ namespace MyApps
                 BtnReset_Click(null, null);
             }
         }
+        private void BtnLogicalOperation_Click(LogicalOperation operation)
+        {
+            if (originalImage == null)
+            {
+                MessageBox.Show("Citra utama belum dimuat. Silakan buka citra terlebih dahulu.", "Peringatan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            HideControlPanels();
+
+            // Operasi NOT (unary) ditangani oleh event handler-nya sendiri
+            if (operation == LogicalOperation.NOT)
+            {
+                // Kode ini seharusnya tidak pernah dijangkau karena event handler NOT diubah
+                ApplyLogicalNot(); return;
+            }
+            using (OpenFileDialog ofd = new OpenFileDialog {
+                Title = $"Select Second Image for {operation} Operation",
+                Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp;*.gif)|*.jpg;*.jpeg;*.png;*.bmp;*.gif",
+                FilterIndex = 1
+            })
+            {
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    Image secondImage;
+                    try
+                    {
+                        using (var ms = new MemoryStream(File.ReadAllBytes(ofd.FileName)))
+                        {
+                            secondImage = new Bitmap(ms);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Gagal memuat citra kedua: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    if (originalImage.Width != secondImage.Width || originalImage.Height != secondImage.Height)
+                    {
+                        MessageBox.Show("Operasi logika gagal. Kedua citra harus memiliki dimensi yang sama.", "Error Dimensi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        secondImage.Dispose();
+                        return;
+                    }
+
+                    // Lakukan operasi logika untuk mendapatkan gambar hasil
+                    Bitmap resultImage = ApplyLogicalOperation((Bitmap)originalImage, (Bitmap)secondImage, operation);
+
+                    if (resultImage != null)
+                    {
+                        // Tampilkan hasil dalam Form baru (ImageLogicForm)
+                        using (ImageLogicForm logicForm = new ImageLogicForm(originalImage, secondImage, resultImage, operation))
+                        {
+                            logicForm.ShowDialog();
+                        }
+                        BtnReset_Click(null, null);
+                    }
+                }
+            }
+        }
+
+        private Bitmap ApplyLogicalOperation(Bitmap bmp1, Bitmap bmp2, LogicalOperation operation)
+        {
+            Bitmap resultBmp = new Bitmap(bmp1.Width, bmp1.Height, PixelFormat.Format32bppArgb);
+            Rectangle rect = new Rectangle(0, 0, bmp1.Width, bmp1.Height);
+
+            BitmapData data1 = bmp1.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            BitmapData data2 = bmp2.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            BitmapData dataR = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+            int totalBytes = data1.Stride * bmp1.Height;
+            byte[] rgbValues1 = new byte[totalBytes];
+            byte[] rgbValues2 = new byte[totalBytes];
+            byte[] rgbValuesR = new byte[totalBytes];
+
+            Marshal.Copy(data1.Scan0, rgbValues1, 0, totalBytes);
+            Marshal.Copy(data2.Scan0, rgbValues2, 0, totalBytes);
+
+            for (int i = 0; i < totalBytes; i += 4)
+            {
+                switch (operation)
+                {
+                    case LogicalOperation.AND:
+                        rgbValuesR[i] = (byte)(rgbValues1[i] & rgbValues2[i]);         // B
+                        rgbValuesR[i + 1] = (byte)(rgbValues1[i + 1] & rgbValues2[i + 1]); // G
+                        rgbValuesR[i + 2] = (byte)(rgbValues1[i + 2] & rgbValues2[i + 2]); // R
+                        break;
+                    case LogicalOperation.OR:
+                        rgbValuesR[i] = (byte)(rgbValues1[i] | rgbValues2[i]);         // B
+                        rgbValuesR[i + 1] = (byte)(rgbValues1[i + 1] | rgbValues2[i + 1]); // G
+                        rgbValuesR[i + 2] = (byte)(rgbValues1[i + 2] | rgbValues2[i + 2]); // R
+                        break;
+                    case LogicalOperation.XOR:
+                        rgbValuesR[i] = (byte)(rgbValues1[i] ^ rgbValues2[i]);         // B
+                        rgbValuesR[i + 1] = (byte)(rgbValues1[i + 1] ^ rgbValues2[i + 1]); // G
+                        rgbValuesR[i + 2] = (byte)(rgbValues1[i + 2] ^ rgbValues2[i + 2]); // R
+                        break;
+                }
+                rgbValuesR[i + 3] = 255; // Alpha
+            }
+
+            Marshal.Copy(rgbValuesR, 0, dataR.Scan0, totalBytes);
+
+            bmp1.UnlockBits(data1);
+            bmp2.UnlockBits(data2);
+            resultBmp.UnlockBits(dataR);
+
+            return resultBmp;
+        }
+
+        private void ApplyLogicalNot()
+        {
+            HideControlPanels();
+            if (pictureBox.Image is not Bitmap currentBmp) return;
+
+            Bitmap resultBmp = new Bitmap(currentBmp); // Buat salinan untuk diubah
+            Rectangle rect = new Rectangle(0, 0, resultBmp.Width, resultBmp.Height);
+            BitmapData data = resultBmp.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+
+            int totalBytes = data.Stride * resultBmp.Height;
+            byte[] rgbValues = new byte[totalBytes];
+            Marshal.Copy(data.Scan0, rgbValues, 0, totalBytes);
+
+            for (int i = 0; i < totalBytes; i++)
+            {
+                if ((i + 1) % 4 != 0) // Abaikan channel Alpha
+                    rgbValues[i] = (byte)~rgbValues[i];
+            }
+
+            Marshal.Copy(rgbValues, 0, data.Scan0, totalBytes);
+            resultBmp.UnlockBits(data);
+
+            pictureBox.Image = resultBmp;
+            lblInfo.Text = "Logical NOT (bitwise negation) operation completed.";
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
