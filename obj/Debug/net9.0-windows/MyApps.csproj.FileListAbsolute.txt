@@ -1,0 +1,28 @@
+C:\Users\Wisnu Nugraha\MyApps\bin\Debug\net9.0-windows\MyApps.exe
+C:\Users\Wisnu Nugraha\MyApps\bin\Debug\net9.0-windows\MyApps.deps.json
+C:\Users\Wisnu Nugraha\MyApps\bin\Debug\net9.0-windows\MyApps.runtimeconfig.json
+C:\Users\Wisnu Nugraha\MyApps\bin\Debug\net9.0-windows\MyApps.dll
+C:\Users\Wisnu Nugraha\MyApps\bin\Debug\net9.0-windows\MyApps.pdb
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.AssemblyInfoInputs.cache
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.AssemblyInfo.cs
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.csproj.CoreCompileInputs.cache
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.dll
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\refint\MyApps.dll
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.pdb
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\MyApps.genruntimeconfig.cache
+C:\Users\Wisnu Nugraha\MyApps\obj\Debug\net9.0-windows\ref\MyApps.dll
+E:\tubes_PCD\MyApps\bin\Debug\net9.0-windows\MyApps.exe
+E:\tubes_PCD\MyApps\bin\Debug\net9.0-windows\MyApps.deps.json
+E:\tubes_PCD\MyApps\bin\Debug\net9.0-windows\MyApps.runtimeconfig.json
+E:\tubes_PCD\MyApps\bin\Debug\net9.0-windows\MyApps.dll
+E:\tubes_PCD\MyApps\bin\Debug\net9.0-windows\MyApps.pdb
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.GeneratedMSBuildEditorConfig.editorconfig
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.AssemblyInfoInputs.cache
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.AssemblyInfo.cs
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.csproj.CoreCompileInputs.cache
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.dll
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\refint\MyApps.dll
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.pdb
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.genruntimeconfig.cache
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\ref\MyApps.dll
