@@ -74,6 +74,14 @@ namespace MyApps
         private float zoomFactor = 1.0f;
         private Label lblZoom;
 
+        // Kontrol untuk Distorsi
+        private FlowLayoutPanel distortionLayout;
+        private Button btnToggleDistortion;
+        private Button btnRippleEffect;
+        private Panel rippleControlPanel;
+        private TrackBar amplitudeTrackBar, frequencyTrackBar;
+        private Label lblAmplitude, lblFrequency;
+        private bool isRippleEffectActive = false;
 
         public enum MathOperation { Add, Multiply, Divide }
         public enum LogicalOperation { AND, OR, XOR, NOT }
@@ -117,6 +125,9 @@ namespace MyApps
 
             translationControlPanel = CreateTranslationControlPanel();
             Controls.Add(translationControlPanel);
+
+            rippleControlPanel = CreateRippleControlPanel();
+            Controls.Add(rippleControlPanel);
 
             sidebarPanel = CreateSidebar();
             Controls.Add(sidebarPanel);
@@ -456,6 +467,20 @@ namespace MyApps
             // Tambahkan ke layout utama SETELAH dibuat
             buttonLayout.Controls.Add(btnToggleLogical);
             buttonLayout.Controls.Add(logicalLayout);
+
+            // --- 6. DISTORTION EFFECTS ---
+            btnToggleDistortion = CreateToggleButton("🌊 DISTORTION EFFECTS", false);
+            distortionLayout = CreateCollapsedPanel();
+            btnRippleEffect = CreateButton("💧 Ripple Effect", Colors.DarkTertiary, false);
+
+            // FUNGSI: Mengaktifkan/menonaktifkan panel kontrol ripple effect.
+            btnRippleEffect.Click += BtnRippleEffect_Click;
+
+            distortionLayout.Controls.Add(btnRippleEffect);
+            btnToggleDistortion.Click += (s, e) => TogglePanelVisibility(distortionLayout, btnToggleDistortion);
+
+            buttonLayout.Controls.Add(btnToggleDistortion);
+            buttonLayout.Controls.Add(distortionLayout);
 
             sidebar.Controls.Add(buttonLayout);
             return sidebar;
@@ -913,6 +938,8 @@ namespace MyApps
             btnRotateFree.Enabled = enabled;
             btnTranslate.Enabled = enabled;
 
+            // Aktifkan tombol distorsi
+            btnRippleEffect.Enabled = enabled;
 
 
 
@@ -2087,6 +2114,14 @@ namespace MyApps
                 translationControlPanel.Visible = false;
                 btnTranslate.BackColor = Colors.DarkTertiary;
             }
+
+            // Sembunyikan panel Ripple jika aktif
+            if (isRippleEffectActive)
+            {
+                isRippleEffectActive = false;
+                rippleControlPanel.Visible = false;
+                btnRippleEffect.BackColor = Colors.DarkTertiary;
+            }
         }
 
         private Panel CreateRotationControlPanel()
@@ -3143,6 +3178,159 @@ namespace MyApps
                 pictureBox.Image?.Dispose();
             }
             base.Dispose(disposing);
+        }
+
+        // --- Fitur Distorsi Citra (Ripple Effect) ---
+
+        private Panel CreateRippleControlPanel()
+        {
+            Panel panel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 90,
+                BackColor = Colors.DarkSecondary,
+                Padding = new Padding(30, 10, 30, 10),
+                Visible = false
+            };
+
+            amplitudeTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = 0, Maximum = 50, Value = 10, TickFrequency = 5, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+            frequencyTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = 5, Maximum = 100, Value = 20, TickFrequency = 10, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+
+            amplitudeTrackBar.Scroll += (s, e) => RippleTrackBar_Scroll();
+            frequencyTrackBar.Scroll += (s, e) => RippleTrackBar_Scroll();
+
+            lblAmplitude = new Label { Text = "Amplitude: 10", Width = 120, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            lblFrequency = new Label { Text = "Frequency: 20", Width = 120, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+
+            Label lblAmp = new Label { Text = "Amplitude", Width = 70, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+            Label lblFreq = new Label { Text = "Frequency", Width = 70, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Padding = new Padding(0), Margin = new Padding(0) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+
+            layout.Controls.Add(lblAmp, 0, 0);
+            layout.Controls.Add(amplitudeTrackBar, 1, 0);
+            layout.Controls.Add(lblAmplitude, 2, 0);
+            layout.Controls.Add(lblFreq, 0, 1);
+            layout.Controls.Add(frequencyTrackBar, 1, 1);
+            layout.Controls.Add(lblFrequency, 2, 1);
+
+            panel.Controls.Add(layout);
+            panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+            return panel;
+        }
+
+        private void BtnRippleEffect_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+
+            HideControlPanels();
+
+            isRippleEffectActive = !isRippleEffectActive;
+            rippleControlPanel.Visible = isRippleEffectActive;
+
+            if (isRippleEffectActive)
+            {
+                BtnReset_Click(null, null);
+                RippleTrackBar_Scroll(); // Terapkan dengan nilai default
+                btnRippleEffect.BackColor = Colors.DarkHover;
+                Controls.SetChildIndex(rippleControlPanel, 1);
+            }
+            else
+            {
+                BtnReset_Click(null, null);
+                btnRippleEffect.BackColor = Colors.DarkTertiary;
+            }
+        }
+
+        private void RippleTrackBar_Scroll()
+        {
+            int amplitude = amplitudeTrackBar.Value;
+            int frequency = frequencyTrackBar.Value;
+
+            lblAmplitude.Text = $"Amplitude: {amplitude}";
+            lblFrequency.Text = $"Frequency: {frequency}";
+
+            ApplyRippleEffect(amplitude, frequency);
+        }
+
+        private void ApplyRippleEffect(int amplitude, int frequency)
+        {
+            if (originalImage is not Bitmap originalBmp) return;
+
+            // Jangan proses jika frekuensi 0 untuk menghindari division by zero
+            if (frequency == 0) return;
+
+            Bitmap resultBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
+
+            Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
+            BitmapData originalData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            BitmapData resultData = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+            int bytesPerPixel = 4;
+            int byteCount = originalData.Stride * originalData.Height;
+            byte[] originalBytes = new byte[byteCount];
+            byte[] resultBytes = new byte[byteCount];
+
+            Marshal.Copy(originalData.Scan0, originalBytes, 0, byteCount);
+
+            int width = originalBmp.Width;
+            int height = originalBmp.Height;
+            int stride = originalData.Stride;
+
+            double centerX = width / 2.0;
+            double centerY = height / 2.0;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    double dx = x - centerX;
+                    double dy = y - centerY;
+                    double distance = Math.Sqrt(dx * dx + dy * dy);
+
+                    // Hitung offset berdasarkan gelombang sinus dari jarak ke pusat
+                    double offset = amplitude * Math.Sin(distance / frequency);
+
+                    // Hitung posisi sumber piksel (source pixel)
+                    // Tambahkan offset ke posisi x dan y saat ini
+                    int srcX = (int)(x + offset);
+                    int srcY = (int)(y + offset);
+
+                    int currentPos = y * stride + x * bytesPerPixel;
+
+                    // Pastikan koordinat sumber berada dalam batas gambar
+                    if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height)
+                    {
+                        int srcPos = srcY * stride + srcX * bytesPerPixel;
+                        resultBytes[currentPos] = originalBytes[srcPos];         // Blue
+                        resultBytes[currentPos + 1] = originalBytes[srcPos + 1]; // Green
+                        resultBytes[currentPos + 2] = originalBytes[srcPos + 2]; // Red
+                        resultBytes[currentPos + 3] = originalBytes[srcPos + 3]; // Alpha
+                    }
+                    else
+                    {
+                        // Jika di luar batas, buat piksel menjadi transparan atau hitam
+                        resultBytes[currentPos] = 0;
+                        resultBytes[currentPos + 1] = 0;
+                        resultBytes[currentPos + 2] = 0;
+                        resultBytes[currentPos + 3] = 0; // Transparan
+                    }
+                }
+            }
+
+            Marshal.Copy(resultBytes, 0, resultData.Scan0, byteCount);
+
+            originalBmp.UnlockBits(originalData);
+            resultBmp.UnlockBits(resultData);
+
+            UpdatePictureBoxImage(resultBmp);
+            lblInfo.Text = $"Ripple effect applied with Amplitude: {amplitude}, Frequency: {frequency}.";
         }
 
         /// <summary>
