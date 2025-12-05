@@ -13,9 +13,9 @@ namespace MyApps
 {
     public class Dashboard : Form
     {
-        // ... (Deklarasi field tetap sama)
+
         private Button btnToggleMath, btnAddImage;
-        private FlowLayoutPanel mathLayout;
+        private FlowLayoutPanel mathLayout; //
 
         private Button btnAnalyzeMultiplication;
 
@@ -23,7 +23,7 @@ namespace MyApps
         private Label lblPath, lblInfo;
         private ProgressBar progressBar;
         private Button btnPilihGambar, btnEkstrakRGB, btnRed, btnGreen, btnBlue, btnGrayscale, btnHistogram, btnReset;
-        private Button btnBiner;
+        private Button btnBiner, btnZoomIn, btnZoomOut, btnFitToScreen;
         private string currentImagePath = string.Empty;
         private Image originalImage;
         private Panel welcomePanel;
@@ -32,7 +32,7 @@ namespace MyApps
         private Button btnToggleMenu;
         private bool isSidebarOpen = true;
         private Button btnBlackWhite;
-        // NEW: Panel dan Kontrol untuk Black White
+
         private Panel blackWhiteControlPanel;
         private TrackBar bwTrackBar;
         private Label lblBWThreshold;
@@ -46,23 +46,56 @@ namespace MyApps
         private bool isBrightnessActive = false;
         private Button btnColorSelect;
         private bool isColorSelectActive = false;
-        private Button btnMultiplyImage; // PASTI ADA
+        private Button btnMultiplyImage;
         private Button btnDivideImage;
         private FlowLayoutPanel numericLayout;
         private Button btnToggleNumeric;
         private Button btnAnalyzeDivision;
-
-        // NEW: FlowLayoutPanels untuk menampung grup tombol (untuk di-toggle)
         private FlowLayoutPanel toolsLayout, colorLayout, analysisLayout;
         private Button btnToggleTools, btnToggleColor, btnToggleAnalysis;
         private FlowLayoutPanel logicalLayout;
         private Button btnToggleLogical;
         private Button btnAnd, btnOr, btnXor, btnNot;
+        private FlowLayoutPanel rotationLayout;
+        private Button btnToggleRotation;
+        private Button btnRotate90, btnRotate180, btnRotate270, btnRotate45, btnRotateFree;
 
-        // NEW: Definisi Enum untuk Operasi Matematika - DIUBAH MENJADI PUBLIC
+        private Panel rotationControlPanel;
+        private TrackBar rotationTrackBar;
+        private Label lblRotationAngle;
+        private bool isRotationActive = false;
+
+        private Panel translationControlPanel;
+        private TrackBar xTranslationTrackBar, yTranslationTrackBar;
+        private Label lblXOffset, lblYOffset;
+        private bool isTranslationActive = false;
+        private Button btnTranslate;
+
+        private float zoomFactor = 1.0f;
+        private Label lblZoom;
+
+        // Kontrol untuk Distorsi
+        private FlowLayoutPanel distortionLayout;
+        private Button btnToggleDistortion;
+        private Button btnRippleEffect;
+        private Panel rippleControlPanel;
+        private TrackBar amplitudeTrackBar, frequencyTrackBar;
+        private Label lblAmplitude, lblFrequency;
+        private bool isRippleEffectActive = false;
+
+        // Kontrol untuk Konvolusi
+        private FlowLayoutPanel convolutionLayout;
+        private Button btnToggleConvolution;
+        private Button btnGaussianBlur, btnSharpen, btnEdgeDetection;
+        private Button btnCustomKernel;
+        private Panel convolutionControlPanel;
+        private NumericUpDown[,] customKernelInputs = new NumericUpDown[3, 3];
+        private NumericUpDown nudFactor, nudBias;
+        private Button btnApplyCustomKernel;
+        private bool isConvolutionActive = false;
+
+
         public enum MathOperation { Add, Multiply, Divide }
-
-        // NEW: Definisi Enum untuk Operasi Logika
         public enum LogicalOperation { AND, OR, XOR, NOT }
 
 
@@ -92,12 +125,24 @@ namespace MyApps
             Panel contentPanel = CreateContentArea();
             Controls.Add(contentPanel);
 
-            // NEW: Tambahkan panel kontrol Black White di atas footer
+            // : Tambahkan panel kontrol Black White di atas footer
             blackWhiteControlPanel = CreateBlackWhiteControlPanel();
             Controls.Add(blackWhiteControlPanel);
 
             brightnessControlPanel = CreateBrightnessControlPanel();
             Controls.Add(brightnessControlPanel);
+
+            rotationControlPanel = CreateRotationControlPanel();
+            Controls.Add(rotationControlPanel);
+
+            translationControlPanel = CreateTranslationControlPanel();
+            Controls.Add(translationControlPanel);
+
+            rippleControlPanel = CreateRippleControlPanel();
+            Controls.Add(rippleControlPanel);
+
+            convolutionControlPanel = CreateConvolutionControlPanel();
+            Controls.Add(convolutionControlPanel);
 
             sidebarPanel = CreateSidebar();
             Controls.Add(sidebarPanel);
@@ -110,7 +155,6 @@ namespace MyApps
 
         private Panel CreateHeader()
         {
-            // ... (Kode CreateHeader SAMA PERSIS dan sudah benar)
             Panel header = new Panel
             {
                 Dock = DockStyle.Top,
@@ -127,6 +171,7 @@ namespace MyApps
                 }
             };
 
+            // TOMBOL: Toggle Sidebar (Hamburger/X)
             btnToggleMenu = new Button
             {
                 Text = "",
@@ -142,6 +187,7 @@ namespace MyApps
             btnToggleMenu.FlatAppearance.MouseOverBackColor = Colors.DarkTertiary;
             btnToggleMenu.FlatAppearance.MouseDownBackColor = Colors.DarkPrimary;
 
+            // FUNGSI: Menyembunyikan atau menampilkan sidebar.
             btnToggleMenu.Click += BtnToggleMenu_Click;
             btnToggleMenu.Paint += DrawToggleIcon;
 
@@ -162,7 +208,6 @@ namespace MyApps
 
         private void DrawToggleIcon(object sender, PaintEventArgs e)
         {
-            // ... (Kode DrawToggleIcon SAMA PERSIS dan sudah benar)
             Button btn = (Button)sender;
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -214,37 +259,67 @@ namespace MyApps
                 AutoScroll = true,
                 Padding = new Padding(0)
             };
-
+            
+            // TOMBOL: Membuka file gambar dari komputer.
             btnPilihGambar = CreatePrimaryButton("📂 OPEN IMAGE", Colors.Primary);
+            // FUNGSI: Membuka dialog pemilihan file dan memuat gambar yang dipilih.
             btnPilihGambar.Click += BtnPilihGambar_Click;
 
             // --- 1. PROCESSING TOOLS ---
+            // TOMBOL: Toggle untuk menampilkan/menyembunyikan grup "Processing Tools".
             btnToggleTools = CreateToggleButton("🛠️ PROCESSING TOOLS", true);
             toolsLayout = CreateCollapsedPanel();
+            // TOMBOL: Mengembalikan tampilan gambar ke kondisi asli.
             btnReset = CreateButton("🔄 Reset View", Colors.DarkTertiary, false);
+            btnZoomIn = CreateButton("➕ Zoom In", Colors.DarkTertiary, false);
+            btnZoomOut = CreateButton("➖ Zoom Out", Colors.DarkTertiary, false);
+            btnFitToScreen = CreateButton("🔍 Fit to Screen", Colors.DarkTertiary, false);
+            // TOMBOL: Mengekspor nilai R, G, B dari setiap piksel ke file teks.
             btnEkstrakRGB = CreateButton("📄 Export RGB Data (.txt)", Colors.DarkTertiary, false);
+            // TOMBOL: Mengekspor nilai biner dari setiap channel R, G, B ke file teks.
             btnBiner = CreateButton("🔢 Export Binary Data (.txt)", Colors.DarkTertiary, false);
 
+            // FUNGSI: Mengembalikan gambar ke aslinya.
+            btnZoomIn.Click += BtnZoomIn_Click;
+            btnZoomOut.Click += BtnZoomOut_Click;
+            btnFitToScreen.Click += BtnFitToScreen_Click;
+
+
             btnReset.Click += BtnReset_Click;
+            // FUNGSI: Memanggil metode EkstrakRGBData.
             btnEkstrakRGB.Click += (s, e) => EkstrakRGBData();
+            // FUNGSI: Memanggil metode BtnBiner_Click.
             btnBiner.Click += BtnBiner_Click;
 
             toolsLayout.Controls.Add(btnReset);
+            toolsLayout.Controls.Add(btnZoomIn);
+            toolsLayout.Controls.Add(btnZoomOut);
+            toolsLayout.Controls.Add(btnFitToScreen);
             toolsLayout.Controls.Add(btnEkstrakRGB);
             toolsLayout.Controls.Add(btnBiner);
             toolsLayout.Visible = true; // Default open
+            // FUNGSI: Mengatur visibilitas panel 'toolsLayout'.
             btnToggleTools.Click += (s, e) => TogglePanelVisibility(toolsLayout, btnToggleTools);
 
             // --- 2. COLOR MANIPULATION ---
+            // TOMBOL: Toggle untuk menampilkan/menyembunyikan grup "Color Manipulation".
             btnToggleColor = CreateToggleButton("🎨 COLOR MANIPULATION", false);
             colorLayout = CreateCollapsedPanel();
+            // TOMBOL: Mengisolasi channel warna Merah.
             btnRed = CreateButton("🔴 Red Channel Isolation", Colors.DarkTertiary, false);
+            // TOMBOL: Mengisolasi channel warna Hijau.
             btnGreen = CreateButton("🟢 Green Channel Isolation", Colors.DarkTertiary, false);
+            // TOMBOL: Mengisolasi channel warna Biru.
             btnBlue = CreateButton("🔵 Blue Channel Isolation", Colors.DarkTertiary, false);
+            // TOMBOL: Mengubah gambar menjadi grayscale (abu-abu).
             btnGrayscale = CreateButton("⚫ Grayscale Conversion", Colors.DarkTertiary, false);
+            // TOMBOL: Mengaktifkan panel kontrol untuk binerisasi (hitam-putih).
             btnBlackWhite = CreateButton("⚪⚫ Black White Level", Colors.DarkTertiary, false);
+            // TOMBOL: Membalikkan warna gambar (negasi).
             btnNegate = CreateButton("⚫ Invert / Negate", Colors.DarkTertiary, false);
+            // TOMBOL: Mengaktifkan panel kontrol untuk penyesuaian kecerahan.
             btnBrightness = CreateButton("☀️ Brightness Level", Colors.DarkTertiary, false);
+            // TOMBOL: Mengaktifkan mode interaktif untuk memilih warna dari gambar.
             btnColorSelect = CreateButton("🖱️ Interactive Color Select", Colors.DarkTertiary, false);
 
             // math operation
@@ -254,29 +329,38 @@ namespace MyApps
             btnMultiplyImage = CreateButton("✖️", Colors.DarkTertiary, false);
             btnDivideImage = CreateButton("➗", Colors.DarkTertiary, false);
 
+            // FUNGSI: Memanggil operasi matematika Penjumlahan.
             btnAddImage.Click += BtnAddImage_Click;
+            // FUNGSI: Memanggil operasi matematika Perkalian.
             btnMultiplyImage.Click += (s, e) => BtnMathOperation_Click(MathOperation.Multiply);
-            btnDivideImage.Click += (s, e) => BtnMathOperation_Click(MathOperation.Divide);// NEW Handler
+            // FUNGSI: Memanggil operasi matematika Pembagian.
+            btnDivideImage.Click += (s, e) => BtnMathOperation_Click(MathOperation.Divide);//  Handler
 
             mathLayout.Controls.Add(btnAddImage);
             mathLayout.Controls.Add(btnMultiplyImage);
-            mathLayout.Controls.Add(btnDivideImage);  // NEW
+            mathLayout.Controls.Add(btnDivideImage);  // 
 
+            // TOMBOL: Toggle untuk menampilkan/menyembunyikan grup "Numeric Analysis".
             btnToggleNumeric = CreateToggleButton("🧮 NUMERIC ANALYSIS", false);
             numericLayout = CreateCollapsedPanel();
 
-            // NEW: Tombol untuk Analisis Perkalian
+            // TOMBOL: Menganalisis hasil perkalian dua gambar secara numerik.
             btnAnalyzeMultiplication = CreateButton("A*B", Colors.DarkTertiary, false);
+            // FUNGSI: Memanggil metode BtnAnalyzeMultiplication_Click.
             btnAnalyzeMultiplication.Click += BtnAnalyzeMultiplication_Click;
 
+            // TOMBOL: Menganalisis hasil pembagian dua gambar secara numerik.
             btnAnalyzeDivision = CreateButton("A/B", Colors.DarkTertiary, false);
+            // FUNGSI: Memanggil metode BtnAnalyzeDivision_Click.
             btnAnalyzeDivision.Click += BtnAnalyzeDivision_Click;
 
             numericLayout.Controls.Add(btnAnalyzeMultiplication);
             numericLayout.Controls.Add(btnAnalyzeDivision);
 
+            // FUNGSI: Mengatur visibilitas panel 'numericLayout'.
             btnToggleNumeric.Click += (s, e) => TogglePanelVisibility(numericLayout, btnToggleNumeric);
 
+            // FUNGSI: Mengatur visibilitas panel 'mathLayout'.
             btnToggleMath.Click += (s, e) => TogglePanelVisibility(mathLayout, btnToggleMath);
 
 
@@ -284,10 +368,15 @@ namespace MyApps
             btnRed.Click += (s, e) => DisplayChannel(Channel.Red);
             btnGreen.Click += (s, e) => DisplayChannel(Channel.Green);
             btnBlue.Click += (s, e) => DisplayChannel(Channel.Blue);
+            // FUNGSI: Mengubah gambar menjadi grayscale.
             btnGrayscale.Click += (s, e) => DisplayGrayscale();
+            // FUNGSI: Menampilkan/menyembunyikan panel kontrol hitam-putih.
             btnBlackWhite.Click += BtnBlackWhite_Click;
+            // FUNGSI: Menerapkan efek negasi pada gambar.
             btnNegate.Click += BtnNegate_Click;
+            // FUNGSI: Menampilkan/menyembunyikan panel kontrol kecerahan.
             btnBrightness.Click += BtnBrightness_Click;
+            // FUNGSI: Mengaktifkan/menonaktifkan mode pemilihan warna.
             btnColorSelect.Click += BtnColorSelect_Click;
 
             colorLayout.Controls.Add(btnRed);
@@ -296,22 +385,55 @@ namespace MyApps
             colorLayout.Controls.Add(btnGrayscale);
             colorLayout.Controls.Add(btnNegate);
             colorLayout.Controls.Add(btnBrightness);
+            colorLayout.Controls.Add(btnBlackWhite);
             colorLayout.Controls.Add(btnColorSelect);
+            // FUNGSI: Mengatur visibilitas panel 'colorLayout'.
             btnToggleColor.Click += (s, e) => TogglePanelVisibility(colorLayout, btnToggleColor);
 
             // --- 3. VISUAL ANALYSIS ---
+            // TOMBOL: Toggle untuk menampilkan/menyembunyikan grup "Visual Analysis".
             btnToggleAnalysis = CreateToggleButton("📈 VISUAL ANALYSIS", false);
             analysisLayout = CreateCollapsedPanel();
+            // TOMBOL: Menampilkan jendela histogram gambar.
             btnHistogram = CreateButton("📊 Show Histogram", Colors.DarkTertiary, false);
 
+            // FUNGSI: Menghitung dan menampilkan histogram.
             btnHistogram.Click += BtnHistogram_Click;
 
             analysisLayout.Controls.Add(btnHistogram);
+            // FUNGSI: Mengatur visibilitas panel 'analysisLayout'.
             btnToggleAnalysis.Click += (s, e) => TogglePanelVisibility(analysisLayout, btnToggleAnalysis);
 
             // Menambahkan ke Layout Utama
             buttonLayout.Controls.Add(btnPilihGambar);
             buttonLayout.Controls.Add(CreateSpacer(15));
+
+            // --- 4. IMAGE ROTATION ---
+            btnToggleRotation = CreateToggleButton("🔄 IMAGE ROTATION", false);
+            rotationLayout = CreateCollapsedPanel();
+            btnRotate90 = CreateButton("↪️ Rotate 90°", Colors.DarkTertiary, false);
+            btnRotate180 = CreateButton("🔄 Rotate 180°", Colors.DarkTertiary, false);
+            btnRotate270 = CreateButton("↩️ Rotate 270°", Colors.DarkTertiary, false);
+            btnRotate45 = CreateButton("↗️ Rotate 45°", Colors.DarkTertiary, false);
+            btnRotateFree = CreateButton("📐 Free Rotate", Colors.DarkTertiary, false);
+            btnTranslate = CreateButton("↔️ Translate / Pan", Colors.DarkTertiary, false);
+
+            btnRotate90.Click += (s, e) => RotateImage(90);
+            btnRotate180.Click += (s, e) => RotateImage(180);
+            btnRotate270.Click += (s, e) => RotateImage(270);
+            btnRotate45.Click += (s, e) => RotateImage(45);
+            btnRotateFree.Click += BtnRotateFree_Click;
+            btnTranslate.Click += BtnTranslate_Click;
+
+
+            rotationLayout.Controls.Add(btnRotate90);
+            rotationLayout.Controls.Add(btnRotate180);
+            rotationLayout.Controls.Add(btnRotate270);
+            rotationLayout.Controls.Add(btnRotate45);
+            rotationLayout.Controls.Add(btnRotateFree);
+            rotationLayout.Controls.Add(btnTranslate);
+            btnToggleRotation.Click += (s, e) => TogglePanelVisibility(rotationLayout, btnToggleRotation);
+
 
             buttonLayout.Controls.Add(btnToggleTools);
             buttonLayout.Controls.Add(toolsLayout);
@@ -322,6 +444,9 @@ namespace MyApps
             buttonLayout.Controls.Add(btnToggleAnalysis);
             buttonLayout.Controls.Add(analysisLayout);
 
+            buttonLayout.Controls.Add(btnToggleRotation);
+            buttonLayout.Controls.Add(rotationLayout);
+
             buttonLayout.Controls.Add(btnToggleMath);
             buttonLayout.Controls.Add(mathLayout);
 
@@ -329,32 +454,74 @@ namespace MyApps
             buttonLayout.Controls.Add(numericLayout);
 
             // --- 5. LOGICAL OPERATIONS ---
+            // TOMBOL: Toggle untuk menampilkan/menyembunyikan grup "Logical Operations".
             btnToggleLogical = CreateToggleButton("🔣 LOGICAL OPERATIONS", false);
             logicalLayout = CreateCollapsedPanel();
+            // TOMBOL: Melakukan operasi logika AND antara dua gambar.
             btnAnd = CreateButton("AND", Colors.DarkTertiary, false);
+            // TOMBOL: Melakukan operasi logika OR antara dua gambar.
             btnOr = CreateButton("OR", Colors.DarkTertiary, false);
+            // TOMBOL: Melakukan operasi logika XOR antara dua gambar.
             btnXor = CreateButton("XOR", Colors.DarkTertiary, false);
+            // TOMBOL: Melakukan operasi logika NOT pada gambar saat ini.
             btnNot = CreateButton("NOT (Negasi)", Colors.DarkTertiary, false);
- 
+
+            // FUNGSI: Memanggil operasi logika AND.
             btnAnd.Click += (s, e) => BtnLogicalOperation_Click(LogicalOperation.AND);
+            // FUNGSI: Memanggil operasi logika OR.
             btnOr.Click += (s, e) => BtnLogicalOperation_Click(LogicalOperation.OR);
+            // FUNGSI: Memanggil operasi logika XOR.
             btnXor.Click += (s, e) => BtnLogicalOperation_Click(LogicalOperation.XOR);
+            // FUNGSI: Menerapkan operasi logika NOT.
             btnNot.Click += (s, e) => ApplyLogicalNot(); // Panggil langsung fungsi NOT
- 
+
             logicalLayout.Controls.AddRange(new Control[] { btnAnd, btnOr, btnXor, btnNot });
+            // FUNGSI: Mengatur visibilitas panel 'logicalLayout'.
             btnToggleLogical.Click += (s, e) => TogglePanelVisibility(logicalLayout, btnToggleLogical);
-            
+
             // Tambahkan ke layout utama SETELAH dibuat
             buttonLayout.Controls.Add(btnToggleLogical);
             buttonLayout.Controls.Add(logicalLayout);
 
+            // --- 6. DISTORTION EFFECTS ---
+            btnToggleDistortion = CreateToggleButton("🌊 DISTORTION EFFECTS", false);
+            distortionLayout = CreateCollapsedPanel();
+            btnRippleEffect = CreateButton("💧 Ripple Effect", Colors.DarkTertiary, false);
 
-            colorLayout.Controls.Add(btnBlackWhite);
+            // FUNGSI: Mengaktifkan/menonaktifkan panel kontrol ripple effect.
+            btnRippleEffect.Click += BtnRippleEffect_Click;
+
+            distortionLayout.Controls.Add(btnRippleEffect);
+            btnToggleDistortion.Click += (s, e) => TogglePanelVisibility(distortionLayout, btnToggleDistortion);
+
+            buttonLayout.Controls.Add(btnToggleDistortion);
+            buttonLayout.Controls.Add(distortionLayout);
+
+            // --- 7. CONVOLUTION / FILTERS ---
+            btnToggleConvolution = CreateToggleButton("🔬 CONVOLUTION / FILTERS", false);
+            convolutionLayout = CreateCollapsedPanel();
+            btnGaussianBlur = CreateButton("🌫️ Gaussian Blur", Colors.DarkTertiary, false);
+            btnSharpen = CreateButton("✨ Sharpen", Colors.DarkTertiary, false);
+            btnEdgeDetection = CreateButton("✒️ Edge Detection", Colors.DarkTertiary, false);
+            btnCustomKernel = CreateButton("⚙️ Custom 3x3 Kernel", Colors.DarkTertiary, false);
+
+            btnGaussianBlur.Click += (s, e) => ApplyPredefinedConvolution("GaussianBlur");
+            btnSharpen.Click += (s, e) => ApplyPredefinedConvolution("Sharpen");
+            btnEdgeDetection.Click += (s, e) => ApplyPredefinedConvolution("EdgeDetection");
+            btnCustomKernel.Click += BtnCustomKernel_Click;
+
+            convolutionLayout.Controls.AddRange(new Control[] { btnGaussianBlur, btnSharpen, btnEdgeDetection, btnCustomKernel });
+            btnToggleConvolution.Click += (s, e) => TogglePanelVisibility(convolutionLayout, btnToggleConvolution);
+
+            buttonLayout.Controls.Add(btnToggleConvolution);
+            buttonLayout.Controls.Add(convolutionLayout);
+
+
             sidebar.Controls.Add(buttonLayout);
             return sidebar;
         }
 
-        // NEW: Membuat FlowLayoutPanel tertutup
+        // : Membuat FlowLayoutPanel tertutup
         private FlowLayoutPanel CreateCollapsedPanel()
         {
             return new FlowLayoutPanel
@@ -365,11 +532,11 @@ namespace MyApps
                 WrapContents = false,
                 Padding = new Padding(0),
                 Margin = new Padding(0, 0, 0, 5), // Jarak di bawah grup
-                Visible = false // Default tertutup
+                Visible = false//  tertutup
             };
         }
 
-        // NEW: Tombol toggle untuk header grup
+        // : Tombol toggle untuk header grup
         private Button CreateToggleButton(string text, bool defaultOpen)
         {
             Button btn = new Button
@@ -397,7 +564,7 @@ namespace MyApps
             return btn;
         }
 
-        // NEW: Menggambar panah toggle
+        // Menggambar panah toggle
         private void DrawToggleArrow(object sender, PaintEventArgs e, bool isOpen)
         {
             Button btn = (Button)sender;
@@ -449,16 +616,20 @@ namespace MyApps
             }
         }
 
-        // NEW: Logika Toggle Panel
+        // logika agar arroy panel nya bisa di gunakan
         private void TogglePanelVisibility(FlowLayoutPanel panel, Button toggleButton)
         {
             panel.Visible = !panel.Visible;
             toggleButton.Tag = panel.Visible;
-            toggleButton.Invalidate(); // Redraw untuk mengubah ikon panah
+            toggleButton.Invalidate();
         }
 
 
-        // ... (Kode BtnToggleMenu_Click, FooterPanelLayout SAMA PERSIS dan sudah benar)
+        
+        /// Fungsi ini dipanggil saat tombol toggle menu (hamburger/X) diklik.
+        /// Fungsinya adalah untuk menampilkan atau menyembunyikan sidebar
+        /// dengan mengubah lebar dan visibilitasnya.
+        
         private void BtnToggleMenu_Click(object sender, EventArgs e)
         {
             if (isSidebarOpen)
@@ -480,6 +651,11 @@ namespace MyApps
             pictureBox.Invalidate();
         }
 
+        
+        /// Helper function untuk menyesuaikan padding pada footer
+        /// saat sidebar dibuka atau ditutup, agar layout tetap rapi.
+        
+        /// <param name="left">Padding kiri baru.</param>
         private void FooterPanelLayout(int left, int top, int right, int bottom)
         {
             Panel footerPanel = Controls.OfType<Panel>().FirstOrDefault(p => p.Dock == DockStyle.Bottom);
@@ -491,7 +667,6 @@ namespace MyApps
 
         private Panel CreateContentArea()
         {
-            // ... (Kode CreateContentArea SAMA PERSIS dan sudah benar)
             Panel contentPanel = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -502,13 +677,15 @@ namespace MyApps
             Panel canvasPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Colors.DarkSecondary,
-                BorderStyle = BorderStyle.None
+                BackColor = Colors.DarkPrimary, // Ubah background agar sesuai dengan tema
+                BorderStyle = BorderStyle.None,
+                AutoScroll = true // PENTING: Aktifkan auto-scroll
             };
 
             canvasPanel.Paint += (s, e) =>
             {
-                using (Pen borderPen = new Pen(Colors.Border, 1))
+                // Gambar border di sekitar panel, bukan di PictureBox
+                using (Pen borderPen = new Pen(Colors.DarkSecondary, 1))
                 {
                     e.Graphics.DrawRectangle(borderPen, 0, 0, canvasPanel.Width - 1, canvasPanel.Height - 1);
                 }
@@ -518,9 +695,9 @@ namespace MyApps
             {
                 Dock = DockStyle.Fill,
                 BackColor = Colors.DarkSecondary,
-                SizeMode = PictureBoxSizeMode.Zoom,
+                SizeMode = PictureBoxSizeMode.AutoSize, // PENTING: Ubah ke AutoSize
                 BorderStyle = BorderStyle.None,
-                Margin = new Padding(1)
+                Location = new Point(0, 0) // Mulai dari pojok kiri atas
             };
             pictureBox.MouseClick += PictureBox_MouseClick;
             welcomePanel = CreateWelcomePanel();
@@ -535,7 +712,6 @@ namespace MyApps
 
         private Panel CreateFooter()
         {
-            // ... (Kode CreateFooter SAMA PERSIS dan sudah benar)
             Panel footer = new Panel
             {
                 Dock = DockStyle.Bottom,
@@ -555,10 +731,11 @@ namespace MyApps
             TableLayoutPanel footerLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3, // Tambah satu kolom untuk Zoom
                 RowCount = 2,
                 Padding = new Padding(0)
             };
+            footerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120)); // Kolom untuk Zoom
             footerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             footerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
             footerLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
@@ -582,6 +759,16 @@ namespace MyApps
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
+            lblZoom = new Label
+            {
+                Text = "Zoom: 100%",
+                Dock = DockStyle.Fill,
+                ForeColor = Colors.TextSecondary,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Visible = false // Sembunyikan sampai ada gambar
+            };
+
             Label lblStatus = new Label
             {
                 Text = "STATUS: IDLE",
@@ -601,10 +788,11 @@ namespace MyApps
                 Margin = new Padding(0, 2, 0, 0)
             };
 
-            footerLayout.Controls.Add(lblPath, 0, 0);
-            footerLayout.Controls.Add(lblStatus, 1, 0);
-            footerLayout.Controls.Add(lblInfo, 0, 1);
-            footerLayout.Controls.Add(progressBar, 1, 1);
+            footerLayout.Controls.Add(lblPath, 1, 0);
+            footerLayout.Controls.Add(lblStatus, 2, 0);
+            footerLayout.Controls.Add(lblInfo, 1, 1);
+            footerLayout.Controls.Add(progressBar, 2, 1);
+            footerLayout.Controls.Add(lblZoom, 0, 1); // Tambahkan label zoom
 
             footer.Controls.Add(footerLayout);
             return footer;
@@ -612,7 +800,6 @@ namespace MyApps
 
         private Panel CreateWelcomePanel()
         {
-            // ... (Kode CreateWelcomePanel SAMA PERSIS dan sudah benar)
             Panel panel = new Panel
             {
                 BackColor = Colors.DarkSecondary
@@ -651,7 +838,6 @@ namespace MyApps
 
         private Button CreateButton(string text, Color backgroundColor, bool isPrimary)
         {
-            // ... (Kode CreateButton SAMA PERSIS dan sudah benar)
             Button btn = new Button
             {
                 Text = text,
@@ -683,7 +869,6 @@ namespace MyApps
 
         private Button CreatePrimaryButton(string text, Color startColor)
         {
-            // ... (Kode CreatePrimaryButton SAMA PERSIS dan sudah benar)
             Button btn = new Button
             {
                 Text = text,
@@ -743,7 +928,7 @@ namespace MyApps
 
         private Panel CreateSpacer(int height)
         {
-            // ... (Kode CreateSpacer SAMA PERSIS dan sudah benar)
+
             return new Panel
             {
                 Width = 250,
@@ -754,7 +939,10 @@ namespace MyApps
 
         private void SetButtonsEnabled(bool enabled)
         {
-            // ... (Kode SetButtonsEnabled SAMA PERSIS dan sudah benar)
+
+            btnZoomIn.Enabled = enabled;
+            btnZoomOut.Enabled = enabled;
+            btnFitToScreen.Enabled = enabled;
             btnReset.Enabled = enabled;
             btnEkstrakRGB.Enabled = enabled;
             btnBiner.Enabled = enabled;
@@ -777,15 +965,36 @@ namespace MyApps
             btnOr.Enabled = enabled;
             btnXor.Enabled = enabled;
             btnNot.Enabled = enabled;
+            // Aktifkan tombol rotasi
+            btnRotate45.Enabled = enabled;
+            btnRotate90.Enabled = enabled;
+            btnRotate180.Enabled = enabled;
+            btnRotate270.Enabled = enabled;
+            btnRotateFree.Enabled = enabled;
+            btnTranslate.Enabled = enabled;
+
+            // Aktifkan tombol distorsi
+            btnRippleEffect.Enabled = enabled;
+
+            // Aktifkan tombol konvolusi
+            btnGaussianBlur.Enabled = enabled;
+            btnSharpen.Enabled = enabled;
+            btnEdgeDetection.Enabled = enabled;
+            btnCustomKernel.Enabled = enabled;
+
+
 
             lblInfo.Text = enabled ? "Image loaded. Ready for processing." : "Ready";
+            lblZoom.Visible = enabled;
         }
 
-        // --- Core Image Processing Methods (LOGIC IMPLEMENTED) ---
 
-        // ... (Kode BtnPilihGambar_Click, BtnReset_Click, EkstrakRGBData, DisplayChannel, 
-        // DisplayGrayscale, CalculateHistograms, BtnHistogram_Click, Dispose SAMA PERSIS dan sudah benar)
 
+        
+        /// Fungsi ini dipanggil saat tombol "OPEN IMAGE" diklik.
+        /// Menampilkan dialog untuk memilih file gambar, kemudian memuat gambar tersebut
+        /// ke dalam `originalImage` dan menampilkannya di `pictureBox`.
+        
         private void BtnPilihGambar_Click(object sender, EventArgs e)
         {
             using OpenFileDialog ofd = new OpenFileDialog
@@ -815,26 +1024,35 @@ namespace MyApps
                 }
 
                 welcomePanel.Visible = false;
-                pictureBox.Image?.Dispose();
-                // Selalu tampilkan salinan Bitmap agar originalImage tidak diubah
-                pictureBox.Image = new Bitmap((Bitmap)originalImage);
+                FitImageToScreen(); // Panggil Fit to Screen saat gambar baru dimuat
 
                 FileInfo fi = new FileInfo(currentImagePath);
                 lblPath.Text = Path.GetFileName(currentImagePath).ToUpper();
                 lblInfo.Text = $"{fi.Length / 1024:N0} KB · {((Bitmap)originalImage).Width} × {((Bitmap)originalImage).Height} px";
 
+
                 SetButtonsEnabled(true);
             }
         }
 
+        
+        /// Fungsi ini dipanggil saat tombol "Reset View" diklik.
+        /// Mengembalikan gambar yang ditampilkan di `pictureBox` ke gambar aslinya
+        /// yang tersimpan di `originalImage`.
+        
         private void BtnReset_Click(object sender, EventArgs e)
         {
             if (originalImage == null) return;
-            pictureBox.Image?.Dispose();
-            pictureBox.Image = new Bitmap((Bitmap)originalImage);
-            lblInfo.Text = "View reset to original image.";
+            FitImageToScreen(); // Reset view sekarang berarti fit to screen
+            lblInfo.Text = "View reset to fit screen.";
         }
 
+        
+        /// Fungsi ini dipanggil saat tombol "Export RGB Data" diklik.
+        /// Mengekstrak nilai Red, Green, dan Blue dari setiap piksel gambar asli,
+        /// memformatnya ke dalam sebuah string, dan menyimpannya sebagai file .txt.
+        /// Menggunakan LockBits untuk performa tinggi.
+        
         private void EkstrakRGBData()
         {
             if (originalImage is not Bitmap originalBmp) return;
@@ -902,6 +1120,12 @@ namespace MyApps
             dataBmp.Dispose();
         }
 
+        
+        /// Fungsi ini dipanggil saat tombol "Export Binary Data" diklik.
+        /// Mengonversi nilai Red, Green, dan Blue dari setiap piksel ke dalam representasi biner (8-bit),
+        /// memformatnya, dan menyimpannya sebagai file .txt.
+        /// Menggunakan LockBits untuk performa tinggi.
+        
         private void BtnBiner_Click(object sender, EventArgs e)
         {
             if (originalImage is not Bitmap originalBmp)
@@ -972,11 +1196,16 @@ namespace MyApps
             }
         }
 
+        
+        /// Fungsi pemrosesan untuk mengisolasi salah satu channel warna (Merah, Hijau, atau Biru).
+        /// Piksel diubah sehingga hanya nilai dari channel yang dipilih yang dipertahankan,
+        /// sementara dua channel lainnya diatur menjadi 0.
+        
+        /// <param name="channel">Channel warna yang ingin diisolasi (Red, Green, atau Blue).</param>
         private void DisplayChannel(Channel channel)
         {
             if (originalImage is not Bitmap originalBmp) return;
 
-            // Menggunakan LockBits untuk performa yang lebih baik (opsional, tapi disarankan)
             HideControlPanels();
             Bitmap newBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
             Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
@@ -1034,12 +1263,15 @@ namespace MyApps
             lblInfo.Text = $"{channel} Channel isolated.";
         }
 
+        
+        /// Fungsi pemrosesan untuk mengubah gambar menjadi grayscale (skala abu-abu).
+        /// Ini dilakukan dengan menghitung nilai rata-rata dari R, G, dan B untuk setiap piksel,
+        /// lalu mengatur ketiga channel tersebut ke nilai rata-rata itu.
+        
         private void DisplayGrayscale()
         {
             if (originalImage is not Bitmap originalBmp) return;
             HideControlPanels();
-
-            // Menggunakan LockBits
             Bitmap newBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
             Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
 
@@ -1059,7 +1291,6 @@ namespace MyApps
                 byte R = originalBytes[i + 2];
                 byte A = originalBytes[i + 3];
 
-                // Luma formula for accurate Grayscale
                 int grayValue = (int)(R * 0.299 + G * 0.587 + B * 0.114);
 
                 // Set R, G, B ke nilai abu-abu
@@ -1079,6 +1310,12 @@ namespace MyApps
             lblInfo.Text = "Image converted to Grayscale.";
         }
 
+        
+        /// Menghitung data histogram untuk channel Merah, Hijau, Biru, dan Grayscale.
+        /// Fungsi ini mengiterasi setiap piksel gambar dan menghitung frekuensi
+        /// dari setiap tingkat intensitas (0-255) untuk setiap channel.
+        
+        /// <returns>Sebuah Dictionary yang memetakan nama channel ke array frekuensi intensitasnya.</returns>
         private Dictionary<string, int[]> CalculateHistograms()
         {
             if (originalImage is not Bitmap originalBmp) return null;
@@ -1108,7 +1345,6 @@ namespace MyApps
                 histG[G]++;
                 histB[B]++;
 
-                // Menggunakan formula Luma
                 int grayValue = (int)(R * 0.299 + G * 0.587 + B * 0.114);
                 histGray[grayValue]++;
             }
@@ -1122,6 +1358,11 @@ namespace MyApps
             };
         }
 
+        
+        /// Fungsi ini dipanggil saat tombol "Show Histogram" diklik.
+        /// Ia memanggil `CalculateHistograms()` untuk mendapatkan data, lalu
+        /// membuat dan menampilkan `HistogramForm` baru dengan data tersebut.
+        
         private void BtnHistogram_Click(object sender, EventArgs e)
         {
             var histogramData = CalculateHistograms();
@@ -1226,6 +1467,12 @@ namespace MyApps
 
             return panel;
         }
+        
+        /// Fungsi ini dipanggil saat tombol "Black White Level" diklik.
+        /// Ia berfungsi sebagai toggle untuk menampilkan atau menyembunyikan
+        /// panel kontrol `TrackBar` untuk binerisasi. Jika panel lain aktif,
+        /// panel itu akan disembunyikan terlebih dahulu.
+        
         private void BtnBlackWhite_Click(object sender, EventArgs e)
         {
             if (originalImage == null)
@@ -1262,6 +1509,11 @@ namespace MyApps
             }
         }
 
+        
+        /// Fungsi ini dipanggil setiap kali slider (TrackBar) untuk Black & White digerakkan.
+        /// Ia memperbarui label threshold dan memanggil fungsi `ApplyBlackWhiteThreshold`
+        /// secara real-time untuk menerapkan efek binerisasi.
+        
         private void BwTrackBar_Scroll(object sender, EventArgs e)
         {
             int threshold = bwTrackBar.Value;
@@ -1269,8 +1521,14 @@ namespace MyApps
             // Panggil fungsi pemrosesan gambar
             ApplyBlackWhiteThreshold(threshold);
         }
-        // Tambahkan di mana saja di dalam kelas Dashboard (sebaiknya dekat dengan DisplayGrayscale atau DisplayChannel)
 
+        
+        /// Fungsi inti untuk menerapkan efek binerisasi (hitam-putih).
+        /// Gambar pertama-tama diubah menjadi grayscale, kemudian setiap piksel dibandingkan
+        /// dengan `thresholdValue`. Piksel menjadi putih jika lebih terang dari threshold,
+        /// dan hitam jika lebih gelap.
+        
+        /// <param name="thresholdValue">Nilai ambang batas (0-255) untuk binerisasi.</param>
         public void ApplyBlackWhiteThreshold(int thresholdValue)
         {
             if (originalImage == null) return;
@@ -1360,8 +1618,11 @@ namespace MyApps
                 btnBlackWhite.BackColor = Colors.DarkTertiary;
             }
         }
-        // Tambahkan di mana saja di dalam kelas Dashboard
 
+        
+        /// Fungsi ini dipanggil saat tombol "Invert / Negate" diklik.
+        /// Ia langsung memanggil fungsi `ApplyNegation` untuk membalikkan warna gambar.
+        
         private void BtnNegate_Click(object sender, EventArgs e)
         {
             if (originalImage == null)
@@ -1373,6 +1634,11 @@ namespace MyApps
             ApplyNegation();
         }
 
+        
+        /// Fungsi inti untuk menerapkan efek negasi (invert warna).
+        /// Nilai setiap channel warna (R, G, B) dari setiap piksel diubah
+        /// menjadi `255 - nilai_asli`.
+        
         private void ApplyNegation()
         {
             if (originalImage is not Bitmap originalBmp) return;
@@ -1516,6 +1782,12 @@ namespace MyApps
 
             return panel;
         }
+        
+        /// Fungsi ini dipanggil saat tombol "Brightness Level" diklik.
+        /// Ia berfungsi sebagai toggle untuk menampilkan atau menyembunyikan
+        /// panel kontrol `TrackBar` untuk penyesuaian kecerahan. Jika panel lain aktif,
+        /// panel itu akan disembunyikan terlebih dahulu.
+        
         private void BtnBrightness_Click(object sender, EventArgs e)
         {
             if (originalImage == null)
@@ -1555,6 +1827,11 @@ namespace MyApps
             }
         }
 
+        
+        /// Fungsi ini dipanggil setiap kali slider (TrackBar) untuk Brightness digerakkan.
+        /// Ia memperbarui label level dan memanggil fungsi `ApplyBrightness`
+        /// secara real-time untuk menyesuaikan kecerahan gambar.
+        
         private void BrTrackBar_Scroll(object sender, EventArgs e)
         {
             int level = brTrackBar.Value;
@@ -1562,6 +1839,13 @@ namespace MyApps
             // Panggil fungsi pemrosesan gambar
             ApplyBrightness(level);
         }
+        
+        /// Fungsi inti untuk menyesuaikan kecerahan gambar.
+        /// Nilai `level` (bisa positif atau negatif) ditambahkan ke setiap channel warna (R, G, B)
+        /// dari setiap piksel. Hasilnya dijaga agar tetap dalam rentang 0-255 (clamping)
+        /// untuk menghindari warna yang tidak valid.
+        
+        /// <param name="level">Tingkat kecerahan yang akan ditambahkan (-255 hingga +255).</param>
         public void ApplyBrightness(int level)
         {
             if (originalImage == null) return;
@@ -1616,6 +1900,12 @@ namespace MyApps
                 BtnReset_Click(null, null);
             }
         }
+        
+        /// Fungsi ini dipanggil saat tombol "Interactive Color Select" diklik.
+        /// Ia mengaktifkan atau menonaktifkan mode pemilihan warna. Saat aktif,
+        /// pengguna dapat mengklik gambar untuk memilih warna, dan kursor akan berubah.
+        /// Panel kontrol lain akan disembunyikan saat mode ini aktif.
+        
         private void BtnColorSelect_Click(object sender, EventArgs e)
         {
             if (originalImage == null)
@@ -1658,7 +1948,12 @@ namespace MyApps
             }
         }
 
-
+        
+        /// Fungsi ini dipanggil saat pengguna mengklik area `pictureBox`.
+        /// Jika mode `isColorSelectActive` aktif, fungsi ini akan menghitung posisi piksel
+        /// yang diklik pada gambar asli (memperhitungkan zoom), mengambil warnanya,
+        /// dan memanggil `ApplyColorSelection` untuk memproses gambar.
+        
         private void PictureBox_MouseClick(object sender, MouseEventArgs e)
         {
             if (!isColorSelectActive || originalImage == null || pictureBox.Image == null)
@@ -1666,52 +1961,57 @@ namespace MyApps
                 return;
             }
 
-            // 1. Dapatkan posisi piksel yang diklik pada gambar asli
-            // Karena PictureBoxSizeMode.Zoom digunakan, perlu menghitung koordinat asli.
-            int x = e.X;
-            int y = e.Y;
-
             // Koordinat gambar asli
             int targetX, targetY;
 
-            // Cek apakah gambar telah dimuat
-            if (originalImage.Width > 0 && originalImage.Height > 0)
+            if (pictureBox.SizeMode == PictureBoxSizeMode.AutoSize)
             {
-                // Hitung scaling factor dan offset
+                // Logika untuk mode AutoSize (saat di-zoom in/out)
+                // Koordinat e.X dan e.Y sudah relatif terhadap gambar yang di-zoom.
+                // Cukup dibagi dengan zoomFactor untuk mendapatkan koordinat di gambar asli.
+                targetX = (int)(e.X / zoomFactor);
+                targetY = (int)(e.Y / zoomFactor);
+            }
+            else // PictureBoxSizeMode.Zoom (saat fit to screen)
+            {
+                // Logika lama yang sudah benar untuk mode Zoom
+                int x = e.X;
+                int y = e.Y;
+
+                if (originalImage.Width <= 0 || originalImage.Height <= 0) return;
+
                 float imgRatio = (float)originalImage.Width / originalImage.Height;
-                float boxRatio = (float)pictureBox.Width / pictureBox.Height;
+                float boxRatio = (float)pictureBox.ClientSize.Width / pictureBox.ClientSize.Height;
 
                 int drawWidth, drawHeight, offsetX, offsetY;
 
-                if (imgRatio > boxRatio) // Dibatasi oleh lebar (Zoom Horizontal)
+                if (imgRatio > boxRatio) // Dibatasi oleh lebar
                 {
-                    drawWidth = pictureBox.Width;
-                    drawHeight = (int)(pictureBox.Width / imgRatio);
+                    drawWidth = pictureBox.ClientSize.Width;
+                    drawHeight = (int)(drawWidth / imgRatio);
                     offsetX = 0;
-                    offsetY = (pictureBox.Height - drawHeight) / 2;
+                    offsetY = (pictureBox.ClientSize.Height - drawHeight) / 2;
                 }
-                else // Dibatasi oleh tinggi (Zoom Vertical)
+                else // Dibatasi oleh tinggi
                 {
-                    drawWidth = (int)(pictureBox.Height * imgRatio);
-                    drawHeight = pictureBox.Height;
-                    offsetX = (pictureBox.Width - drawWidth) / 2;
+                    drawWidth = (int)(pictureBox.ClientSize.Height * imgRatio);
+                    drawHeight = pictureBox.ClientSize.Height;
+                    offsetX = (pictureBox.ClientSize.Width - drawWidth) / 2;
                     offsetY = 0;
                 }
 
-                // Konversi koordinat klik (x, y) ke koordinat gambar asli
-                if (x < offsetX || x > offsetX + drawWidth || y < offsetY || y > offsetY + drawHeight)
+                if (x < offsetX || x >= offsetX + drawWidth || y < offsetY || y >= offsetY + drawHeight)
                 {
-                    // Klik di area padding (di luar gambar yang dizoom)
                     lblInfo.Text = "Clicked outside the image area. Please click on the picture.";
                     return;
                 }
 
                 targetX = (int)(((float)(x - offsetX) / drawWidth) * originalImage.Width);
                 targetY = (int)(((float)(y - offsetY) / drawHeight) * originalImage.Height);
-
             }
-            else
+            
             {
+                // Fallback jika ada mode lain yang tidak terduga
                 return;
             }
 
@@ -1736,6 +2036,13 @@ namespace MyApps
             ApplyColorSelection(targetColor, DEFAULT_TOLERANCE);
             lblInfo.Text = $"Selected Color: R:{targetColor.R}, G:{targetColor.G}, B:{targetColor.B}. Tolerance: {DEFAULT_TOLERANCE}.";
         }
+        
+        /// Fungsi inti untuk mengisolasi warna tertentu pada gambar.
+        /// Hanya piksel yang warnanya "mirip" dengan `targetColor` (dalam rentang `tolerance`)
+        //  yang akan dipertahankan. Piksel lain akan diubah menjadi hitam.
+        
+        /// <param name="targetColor">Warna yang ingin diisolasi.</param>
+        /// <param name="tolerance">Toleransi perbedaan warna.</param>
         public void ApplyColorSelection(Color targetColor, int tolerance)
         {
             if (originalImage is not Bitmap originalBmp) return;
@@ -1803,6 +2110,10 @@ namespace MyApps
                 BtnReset_Click(null, null);
             }
         }
+        
+        /// Helper function untuk menyembunyikan semua panel kontrol interaktif
+        /// (Black & White, Brightness) dan menonaktifkan mode Color Select.
+        
         private void HideControlPanels()
         {
             // Sembunyikan panel Black White jika aktif
@@ -1828,13 +2139,397 @@ namespace MyApps
                 btnColorSelect.BackColor = Colors.DarkTertiary;
                 lblInfo.Text = "Color Selection Mode: OFF. View reset to original image.";
             }
+
+            // Sembunyikan panel Rotasi jika aktif
+            if (isRotationActive)
+            {
+                isRotationActive = false;
+                rotationControlPanel.Visible = false;
+                btnRotateFree.BackColor = Colors.DarkTertiary;
+            }
+
+            // Sembunyikan panel Translasi jika aktif
+            if (isTranslationActive)
+            {
+                isTranslationActive = false;
+                translationControlPanel.Visible = false;
+                btnTranslate.BackColor = Colors.DarkTertiary;
+            }
+
+            // Sembunyikan panel Ripple jika aktif
+            if (isRippleEffectActive)
+            {
+                isRippleEffectActive = false;
+                rippleControlPanel.Visible = false;
+                btnRippleEffect.BackColor = Colors.DarkTertiary;
+            }
+
+            // Sembunyikan panel Konvolusi jika aktif
+            if (isConvolutionActive)
+            {
+                isConvolutionActive = false;
+                convolutionControlPanel.Visible = false;
+                btnCustomKernel.BackColor = Colors.DarkTertiary;
+            }
+
         }
-        // DI DALAM KELAS Dashboard, UBAH metode AddImages
-        // Ubah void menjadi Bitmap dan hapus logika tampilan.
+
+        private Panel CreateRotationControlPanel()
+        {
+            Panel panel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 60,
+                BackColor = Colors.DarkSecondary,
+                Padding = new Padding(30, 10, 30, 10),
+                Visible = false
+            };
+
+            rotationTrackBar = new TrackBar
+            {
+                Dock = DockStyle.Fill,
+                Minimum = -180,
+                Maximum = 180,
+                Value = 0,
+                TickFrequency = 15,
+                SmallChange = 5,
+                LargeChange = 45,
+                BackColor = Colors.DarkSecondary,
+                Cursor = Cursors.Hand,
+                Height = 40
+            };
+            rotationTrackBar.Scroll += RotationTrackBar_Scroll;
+
+            lblRotationAngle = new Label
+            {
+                Text = "Angle: 0°",
+                Width = 120,
+                TextAlign = ContentAlignment.MiddleRight,
+                ForeColor = Colors.TextPrimary,
+                Font = new Font("Segoe UI", 10f, FontStyle.Bold)
+            };
+
+            Label lblLeft = new Label { Text = "-180°", Width = 80, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+            Label lblRight = new Label { Text = "+180°", Width = 100, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(0), Margin = new Padding(0) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            layout.Controls.Add(lblLeft, 0, 0);
+            layout.Controls.Add(rotationTrackBar, 1, 0);
+            layout.Controls.Add(lblRight, 2, 0);
+            layout.Controls.Add(lblRotationAngle, 3, 0);
+
+            panel.Controls.Add(layout);
+            panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+            return panel;
+        }
+
+        private void BtnRotateFree_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+
+            HideControlPanels();
+
+            isRotationActive = !isRotationActive;
+            rotationControlPanel.Visible = isRotationActive;
+
+            if (isRotationActive)
+            {
+                BtnReset_Click(null, null);
+                rotationTrackBar.Value = 0;
+                lblRotationAngle.Text = "Angle: 0°";
+                RotateImage(0);
+                btnRotateFree.BackColor = Colors.DarkHover;
+                Controls.SetChildIndex(rotationControlPanel, 1);
+            }
+            else
+            {
+                BtnReset_Click(null, null);
+                btnRotateFree.BackColor = Colors.DarkTertiary;
+            }
+        }
+
+        private void RotationTrackBar_Scroll(object sender, EventArgs e)
+        {
+            int angle = rotationTrackBar.Value;
+            lblRotationAngle.Text = $"Angle: {angle}°";
+            RotateImage(angle);
+        }
+
+        private void RotateImage(float angle)
+        {
+            if (originalImage == null) return;
+
+            // Sembunyikan panel lain jika tidak dalam mode rotasi bebas
+            if (!isRotationActive)
+            {
+                HideControlPanels();
+            }
+
+            try
+            {
+                Bitmap originalBmp = new Bitmap(originalImage);
+
+                // Konversi sudut ke radian
+                double angleRad = angle * Math.PI / 180.0;
+
+                // Hitung ukuran bounding box baru untuk menampung gambar yang diputar
+                double cos = Math.Abs(Math.Cos(angleRad));
+                double sin = Math.Abs(Math.Sin(angleRad));
+                int newWidth = (int)(originalBmp.Width * cos + originalBmp.Height * sin);
+                int newHeight = (int)(originalBmp.Width * sin + originalBmp.Height * cos);
+
+                // Buat bitmap baru dengan ukuran yang sudah dihitung
+                Bitmap rotatedBmp = new Bitmap(newWidth, newHeight);
+                rotatedBmp.SetResolution(originalBmp.HorizontalResolution, originalBmp.VerticalResolution);
+
+                using (Graphics g = Graphics.FromImage(rotatedBmp))
+                {
+                    // Atur latar belakang transparan
+                    g.Clear(Color.Transparent);
+
+                    // Pindahkan titik pivot rotasi ke tengah gambar baru
+                    g.TranslateTransform(newWidth / 2f, newHeight / 2f);
+
+                    // Lakukan rotasi
+                    g.RotateTransform(angle);
+
+                    // Pindahkan kembali titik pivot agar gambar asli tergambar di tengah
+                    g.TranslateTransform(-originalBmp.Width / 2f, -originalBmp.Height / 2f);
+
+                // Gambar citra asli ke atas kanvas yang sudah diputar dengan interpolasi yang baik
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.DrawImage(originalBmp, new Point(0, 0));
+                }
+
+            UpdatePictureBoxImage(rotatedBmp);
+
+                if (isRotationActive)
+                {
+                    lblInfo.Text = $"Image rotated by {angle} degrees.";
+                }
+                else
+                {
+                    lblInfo.Text = $"Applied {angle}° rotation.";
+                }
+
+                originalBmp.Dispose();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error during rotation: {ex.Message}", "Rotation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                BtnReset_Click(null, null);
+            }
+        }
+
+        private Panel CreateTranslationControlPanel()
+        {
+            Panel panel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 90,
+                BackColor = Colors.DarkSecondary,
+                Padding = new Padding(30, 10, 30, 10),
+                Visible = false
+            };
+
+            xTranslationTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = -500, Maximum = 500, Value = 0, TickFrequency = 50, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+            yTranslationTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = -500, Maximum = 500, Value = 0, TickFrequency = 50, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+
+            xTranslationTrackBar.Scroll += (s, e) => TranslationTrackBar_Scroll();
+            yTranslationTrackBar.Scroll += (s, e) => TranslationTrackBar_Scroll();
+
+            lblXOffset = new Label { Text = "X: 0px", Width = 100, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            lblYOffset = new Label { Text = "Y: 0px", Width = 100, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+
+            Label lblX = new Label { Text = "X-Axis", Width = 50, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+            Label lblY = new Label { Text = "Y-Axis", Width = 50, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Padding = new Padding(0), Margin = new Padding(0) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+
+            layout.Controls.Add(lblX, 0, 0);
+            layout.Controls.Add(xTranslationTrackBar, 1, 0);
+            layout.Controls.Add(lblXOffset, 2, 0);
+            layout.Controls.Add(lblY, 0, 1);
+            layout.Controls.Add(yTranslationTrackBar, 1, 1);
+            layout.Controls.Add(lblYOffset, 2, 1);
+
+            panel.Controls.Add(layout);
+            panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+            return panel;
+        }
+
+        private void BtnTranslate_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+
+            HideControlPanels();
+
+            isTranslationActive = !isTranslationActive;
+            translationControlPanel.Visible = isTranslationActive;
+
+            if (isTranslationActive)
+            {
+                // Set trackbar range based on image size
+                xTranslationTrackBar.Minimum = -originalImage.Width;
+                xTranslationTrackBar.Maximum = originalImage.Width;
+                yTranslationTrackBar.Minimum = -originalImage.Height;
+                yTranslationTrackBar.Maximum = originalImage.Height;
+
+                xTranslationTrackBar.Value = 0;
+                yTranslationTrackBar.Value = 0;
+
+                TranslationTrackBar_Scroll(); // Apply initial state (0,0)
+
+                btnTranslate.BackColor = Colors.DarkHover;
+                Controls.SetChildIndex(translationControlPanel, 1);
+            }
+            else
+            {
+                BtnReset_Click(null, null);
+                btnTranslate.BackColor = Colors.DarkTertiary;
+            }
+        }
+
+        private void TranslationTrackBar_Scroll()
+        {
+            int xOffset = xTranslationTrackBar.Value;
+            int yOffset = yTranslationTrackBar.Value;
+
+            lblXOffset.Text = $"X: {xOffset}px";
+            lblYOffset.Text = $"Y: {yOffset}px";
+
+            TranslateImage(xOffset, yOffset);
+        }
+
+        private void TranslateImage(int offsetX, int offsetY)
+        {
+            if (originalImage == null) return;
+
+            try
+            {
+                Bitmap originalBmp = new Bitmap(originalImage);
+                Bitmap translatedBmp = new Bitmap(originalBmp.Width, originalBmp.Height, originalBmp.PixelFormat);
+
+                using (Graphics g = Graphics.FromImage(translatedBmp))
+                {
+                    // Atur latar belakang transparan atau warna lain
+                    g.Clear(Color.Transparent);
+
+                    // Gambar citra asli dengan offset
+                    g.DrawImage(originalBmp, new Rectangle(offsetX, offsetY, originalBmp.Width, originalBmp.Height));
+                }
+
+                UpdatePictureBoxImage(translatedBmp);
+
+                lblInfo.Text = $"Image translated by (X:{offsetX}, Y:{offsetY}).";
+                originalBmp.Dispose();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error during translation: {ex.Message}", "Translation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                BtnReset_Click(null, null);
+            }
+        }
+
+        private void BtnZoomIn_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+            zoomFactor *= 1.25f; // Perbesar 25%
+            if (zoomFactor > 10.0f) zoomFactor = 10.0f; // Batas zoom maksimal 1000%
+            ApplyZoom();
+        }
+
+        private void BtnZoomOut_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+            zoomFactor /= 1.25f; // Perkecil 25%
+            if (zoomFactor < 0.1f) zoomFactor = 0.1f; // Batas zoom minimal 10%
+            ApplyZoom();
+        }
+
+        private void BtnFitToScreen_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+            FitImageToScreen();
+        }
+
+        private void ApplyZoom()
+        {
+            if (originalImage == null) return;
+
+            // Ubah SizeMode ke AutoSize agar ukuran PictureBox bisa diubah
+            pictureBox.SizeMode = PictureBoxSizeMode.AutoSize;
+
+            // Hitung ukuran baru berdasarkan faktor zoom
+            int newWidth = (int)(originalImage.Width * zoomFactor);
+            int newHeight = (int)(originalImage.Height * zoomFactor);
+
+            // Buat bitmap baru dengan ukuran yang sudah di-zoom
+            Bitmap zoomedBmp = new Bitmap(newWidth, newHeight);
+            using (Graphics g = Graphics.FromImage(zoomedBmp))
+            {
+                // Gunakan kualitas interpolasi tinggi untuk hasil yang lebih baik
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.DrawImage(originalImage, 0, 0, newWidth, newHeight);
+            }
+
+            // Terapkan gambar baru ke PictureBox
+            UpdatePictureBoxImage(zoomedBmp);
+
+            // Update label
+            lblZoom.Text = $"Zoom: {zoomFactor:P0}";
+            lblInfo.Text = $"Image zoomed to {zoomFactor:P0}.";
+        }
+
+        private void FitImageToScreen()
+        {
+            if (originalImage == null) return;
+
+            // Kembalikan SizeMode ke Zoom agar pas di layar
+            pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+            UpdatePictureBoxImage(new Bitmap(originalImage)); // Tampilkan gambar asli
+
+            // Hitung zoom factor yang efektif saat 'Fit to Screen'
+            Panel canvas = pictureBox.Parent as Panel;
+            if (canvas != null)
+            {
+                float ratioX = (float)canvas.ClientSize.Width / originalImage.Width;
+                float ratioY = (float)canvas.ClientSize.Height / originalImage.Height;
+                zoomFactor = Math.Min(ratioX, ratioY); // Faktor zoom adalah rasio terkecil
+            }
+
+            lblZoom.Text = $"Zoom: {zoomFactor:P0}";
+            lblInfo.Text = "Image fit to screen.";
+        }
+
+        
+        /// Event handler untuk tombol tambah (+).
+        /// Ini adalah shortcut yang langsung memanggil `BtnMathOperation_Click`
+        /// dengan operasi `Add`.
+        
         private void BtnAddImage_Click(object sender, EventArgs e)
         {
             BtnMathOperation_Click(MathOperation.Add);
         }
+        
+        /// Fungsi inti untuk menjumlahkan dua gambar.
+        /// Menjumlahkan nilai R, G, B dari setiap piksel yang bersesuaian dari kedua gambar.
+        /// Hasilnya di-clamp pada 255 untuk mencegah overflow.
+        
+        /// <returns>Bitmap baru yang merupakan hasil penjumlahan.</returns>
         private Bitmap AddImages(Bitmap bmp1, Bitmap bmp2)
         {
             // Cek dimensi sudah dilakukan di BtnAddImage_Click, tapi tetap pertahankan untuk keamanan
@@ -1904,6 +2599,12 @@ namespace MyApps
                 return null;
             }
         }
+        
+        /// Fungsi generik yang menangani semua operasi matematika (Tambah, Kali, Bagi).
+        /// Ia membuka dialog untuk memilih gambar kedua, memastikan dimensinya sama,
+        /// memanggil fungsi matematika yang sesuai, dan menampilkan hasilnya di `ImageMathForm`.
+        
+        /// <param name="operation">Jenis operasi matematika yang akan dilakukan.</param>
         private void BtnMathOperation_Click(MathOperation operation)
         {
             if (originalImage == null)
@@ -1972,6 +2673,12 @@ namespace MyApps
                 }
             }
         }
+        
+        /// Fungsi inti untuk mengalikan dua gambar.
+        /// Mengalikan nilai R, G, B dari setiap piksel yang bersesuaian.
+        /// Hasilnya di-clamp pada 255.
+        
+        /// <returns>Bitmap baru yang merupakan hasil perkalian.</returns>
         private Bitmap MultiplyImages(Bitmap bmp1, Bitmap bmp2)
         {
             if (bmp1.Width != bmp2.Width || bmp1.Height != bmp2.Height) return null;
@@ -2029,7 +2736,12 @@ namespace MyApps
             }
         }
 
-        // NEW: Metode Pembagian Citra
+        
+        /// Fungsi inti untuk membagi dua gambar.
+        /// Membagi nilai R, G, B dari piksel gambar pertama dengan piksel gambar kedua.
+        /// Menangani kasus pembagian dengan nol dengan menghasilkan nilai 255.
+        
+        /// <returns>Bitmap baru yang merupakan hasil pembagian.</returns>
         private Bitmap DivideImages(Bitmap bmp1, Bitmap bmp2)
         {
             if (bmp1.Width != bmp2.Width || bmp1.Height != bmp2.Height) return null;
@@ -2091,6 +2803,11 @@ namespace MyApps
                 return null;
             }
         }
+        
+        /// Fungsi ini dipanggil saat tombol "A/B" di grup Numeric Analysis diklik.
+        /// Ia meminta pengguna memilih gambar kedua, lalu memanggil `AnalyzeImageDivision`
+        /// untuk melakukan analisis numerik pada hasil pembagian.
+        
         private void BtnAnalyzeDivision_Click(object sender, EventArgs e)
         {
             if (originalImage == null)
@@ -2140,7 +2857,12 @@ namespace MyApps
             }
         }
 
-        // NEW: Metode untuk melakukan Pembagian dan menampilkan Hasil Numerik
+        
+        /// Melakukan operasi pembagian gambar, kemudian menghitung dan menampilkan
+        /// statistik numerik (rata-rata intensitas per channel) dari gambar hasil
+        /// dalam sebuah MessageBox, tanpa menampilkan gambar hasilnya secara visual.
+        
+        /// <param name="bmp2">Bitmap kedua yang akan menjadi pembagi.</param>
         private void AnalyzeImageDivision(Bitmap bmp1, Bitmap bmp2, string secondImageName)
         {
             Bitmap resultBmp = DivideImages(bmp1, bmp2); // Gunakan DivideImages yang sudah ada untuk mendapatkan citra hasil
@@ -2210,6 +2932,11 @@ namespace MyApps
                 BtnReset_Click(null, null);
             }
         }
+        
+        /// Fungsi ini dipanggil saat tombol "A*B" di grup Numeric Analysis diklik.
+        /// Ia meminta pengguna memilih gambar kedua, lalu memanggil `AnalyzeImageMultiplication`
+        /// untuk melakukan analisis numerik pada hasil perkalian.
+        
         private void BtnAnalyzeMultiplication_Click(object sender, EventArgs e)
         {
             if (originalImage == null)
@@ -2259,7 +2986,12 @@ namespace MyApps
             }
         }
 
-        // NEW: Metode untuk melakukan Perkalian dan menampilkan Hasil Numerik
+        
+        /// Melakukan operasi perkalian gambar, kemudian menghitung dan menampilkan
+        /// statistik numerik (rata-rata intensitas per channel) dari gambar hasil
+        /// dalam sebuah MessageBox.
+        
+        /// <param name="bmp2">Bitmap kedua yang akan menjadi pengali.</param>
         private void AnalyzeImageMultiplication(Bitmap bmp1, Bitmap bmp2, string secondImageName)
         {
             // Gunakan MultiplyImages yang sudah ada untuk mendapatkan citra hasil
@@ -2329,6 +3061,13 @@ namespace MyApps
                 BtnReset_Click(null, null);
             }
         }
+        
+        /// Fungsi generik yang menangani operasi logika bitwise (AND, OR, XOR).
+        /// Ia membuka dialog untuk memilih gambar kedua, memastikan dimensinya sama,
+        /// memanggil `ApplyLogicalOperation` untuk memproses, dan menampilkan hasilnya
+        /// di `ImageLogicForm`.
+        
+        /// <param name="operation">Jenis operasi logika yang akan dilakukan.</param>
         private void BtnLogicalOperation_Click(LogicalOperation operation)
         {
             if (originalImage == null)
@@ -2345,7 +3084,8 @@ namespace MyApps
                 // Kode ini seharusnya tidak pernah dijangkau karena event handler NOT diubah
                 ApplyLogicalNot(); return;
             }
-            using (OpenFileDialog ofd = new OpenFileDialog {
+            using (OpenFileDialog ofd = new OpenFileDialog
+            {
                 Title = $"Select Second Image for {operation} Operation",
                 Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp;*.gif)|*.jpg;*.jpeg;*.png;*.bmp;*.gif",
                 FilterIndex = 1
@@ -2390,6 +3130,12 @@ namespace MyApps
             }
         }
 
+        
+        /// Fungsi inti yang melakukan operasi logika bitwise (AND, OR, XOR) per piksel
+        /// antara dua gambar.
+        
+        /// <param name="operation">Operasi logika yang akan diterapkan.</param>
+        /// <returns>Bitmap baru yang merupakan hasil dari operasi logika.</returns>
         private Bitmap ApplyLogicalOperation(Bitmap bmp1, Bitmap bmp2, LogicalOperation operation)
         {
             Bitmap resultBmp = new Bitmap(bmp1.Width, bmp1.Height, PixelFormat.Format32bppArgb);
@@ -2439,6 +3185,11 @@ namespace MyApps
             return resultBmp;
         }
 
+        
+        /// Fungsi ini dipanggil oleh tombol "NOT".
+        /// Ia menerapkan operasi negasi bitwise (bitwise NOT atau `~`) pada setiap channel warna
+        /// dari gambar yang sedang ditampilkan di `pictureBox`.
+        
         private void ApplyLogicalNot()
         {
             HideControlPanels();
@@ -2461,10 +3212,14 @@ namespace MyApps
             Marshal.Copy(rgbValues, 0, data.Scan0, totalBytes);
             resultBmp.UnlockBits(data);
 
-            pictureBox.Image = resultBmp;
+            UpdatePictureBoxImage(resultBmp);
             lblInfo.Text = "Logical NOT (bitwise negation) operation completed.";
         }
 
+        
+        /// Override metode Dispose untuk memastikan semua resource gambar
+        /// (terutama `originalImage` dan gambar di `pictureBox`) dibebaskan dari memori saat form ditutup.
+        
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -2474,5 +3229,373 @@ namespace MyApps
             }
             base.Dispose(disposing);
         }
+
+        // --- Fitur Distorsi Citra (Ripple Effect) ---
+
+        private Panel CreateRippleControlPanel()
+        {
+            Panel panel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 90,
+                BackColor = Colors.DarkSecondary,
+                Padding = new Padding(30, 10, 30, 10),
+                Visible = false
+            };
+
+            amplitudeTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = 0, Maximum = 50, Value = 10, TickFrequency = 5, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+            frequencyTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = 5, Maximum = 100, Value = 20, TickFrequency = 10, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+
+            amplitudeTrackBar.Scroll += (s, e) => RippleTrackBar_Scroll();
+            frequencyTrackBar.Scroll += (s, e) => RippleTrackBar_Scroll();
+
+            lblAmplitude = new Label { Text = "Amplitude: 10", Width = 120, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            lblFrequency = new Label { Text = "Frequency: 20", Width = 120, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+
+            Label lblAmp = new Label { Text = "Amplitude", Width = 70, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+            Label lblFreq = new Label { Text = "Frequency", Width = 70, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Padding = new Padding(0), Margin = new Padding(0) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+
+            layout.Controls.Add(lblAmp, 0, 0);
+            layout.Controls.Add(amplitudeTrackBar, 1, 0);
+            layout.Controls.Add(lblAmplitude, 2, 0);
+            layout.Controls.Add(lblFreq, 0, 1);
+            layout.Controls.Add(frequencyTrackBar, 1, 1);
+            layout.Controls.Add(lblFrequency, 2, 1);
+
+            panel.Controls.Add(layout);
+            panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+            return panel;
+        }
+
+        private void BtnRippleEffect_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+
+            HideControlPanels();
+
+            isRippleEffectActive = !isRippleEffectActive;
+            rippleControlPanel.Visible = isRippleEffectActive;
+
+            if (isRippleEffectActive)
+            {
+                BtnReset_Click(null, null);
+                RippleTrackBar_Scroll(); // Terapkan dengan nilai default
+                btnRippleEffect.BackColor = Colors.DarkHover;
+                Controls.SetChildIndex(rippleControlPanel, 1);
+            }
+            else
+            {
+                BtnReset_Click(null, null);
+                btnRippleEffect.BackColor = Colors.DarkTertiary;
+            }
+        }
+
+        private void RippleTrackBar_Scroll()
+        {
+            int amplitude = amplitudeTrackBar.Value;
+            int frequency = frequencyTrackBar.Value;
+
+            lblAmplitude.Text = $"Amplitude: {amplitude}";
+            lblFrequency.Text = $"Frequency: {frequency}";
+
+            ApplyRippleEffect(amplitude, frequency);
+        }
+
+        private void ApplyRippleEffect(int amplitude, int frequency)
+        {
+            if (originalImage is not Bitmap originalBmp) return;
+
+            // Jangan proses jika frekuensi 0 untuk menghindari division by zero
+            if (frequency == 0) return;
+
+            Bitmap resultBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
+
+            Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
+            BitmapData originalData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            BitmapData resultData = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+            int bytesPerPixel = 4;
+            int byteCount = originalData.Stride * originalData.Height;
+            byte[] originalBytes = new byte[byteCount];
+            byte[] resultBytes = new byte[byteCount];
+
+            Marshal.Copy(originalData.Scan0, originalBytes, 0, byteCount);
+
+            int width = originalBmp.Width;
+            int height = originalBmp.Height;
+            int stride = originalData.Stride;
+
+            double centerX = width / 2.0;
+            double centerY = height / 2.0;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    double dx = x - centerX;
+                    double dy = y - centerY;
+                    double distance = Math.Sqrt(dx * dx + dy * dy);
+
+                    // Hitung offset berdasarkan gelombang sinus dari jarak ke pusat
+                    double offset = amplitude * Math.Sin(distance / frequency);
+
+                    // Hitung posisi sumber piksel (source pixel)
+                    // Tambahkan offset ke posisi x dan y saat ini
+                    int srcX = (int)(x + offset);
+                    int srcY = (int)(y + offset);
+
+                    int currentPos = y * stride + x * bytesPerPixel;
+
+                    // Pastikan koordinat sumber berada dalam batas gambar
+                    if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height)
+                    {
+                        int srcPos = srcY * stride + srcX * bytesPerPixel;
+                        resultBytes[currentPos] = originalBytes[srcPos];         // Blue
+                        resultBytes[currentPos + 1] = originalBytes[srcPos + 1]; // Green
+                        resultBytes[currentPos + 2] = originalBytes[srcPos + 2]; // Red
+                        resultBytes[currentPos + 3] = originalBytes[srcPos + 3]; // Alpha
+                    }
+                    else
+                    {
+                        // Jika di luar batas, buat piksel menjadi transparan atau hitam
+                        resultBytes[currentPos] = 0;
+                        resultBytes[currentPos + 1] = 0;
+                        resultBytes[currentPos + 2] = 0;
+                        resultBytes[currentPos + 3] = 0; // Transparan
+                    }
+                }
+            }
+
+            Marshal.Copy(resultBytes, 0, resultData.Scan0, byteCount);
+
+            originalBmp.UnlockBits(originalData);
+            resultBmp.UnlockBits(resultData);
+
+            UpdatePictureBoxImage(resultBmp);
+            lblInfo.Text = $"Ripple effect applied with Amplitude: {amplitude}, Frequency: {frequency}.";
+        }
+
+        /// <summary>
+        /// Helper method to safely update the PictureBox image, disposing the old one if necessary.
+        /// </summary>
+        /// <param name="newImage">The new image to display.</param>
+        private void UpdatePictureBoxImage(Image newImage)
+        {
+            Image oldImage = pictureBox.Image;
+            pictureBox.Image = newImage;
+            oldImage?.Dispose();
+        }
+    
+
+    // --- Fitur Konvolusi ---
+
+    private Panel CreateConvolutionControlPanel()
+    {
+        Panel panel = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 160,
+            BackColor = Colors.DarkSecondary,
+            Padding = new Padding(20),
+            Visible = false
+        };
+
+        Label title = new Label { Text = "Custom 3x3 Kernel Matrix", Dock = DockStyle.Top, Height = 25, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 10f, FontStyle.Bold) };
+
+        TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        TableLayoutPanel kernelGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3 };
+        for (int i = 0; i < 3; i++)
+        {
+            kernelGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+            kernelGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
+        }
+
+        for (int y = 0; y < 3; y++)
+        {
+            for (int x = 0; x < 3; x++)
+            {
+                customKernelInputs[x, y] = new NumericUpDown
+                {
+                    Dock = DockStyle.Fill,
+                    Minimum = -255,
+                    Maximum = 255,
+                    Value = (x == 1 && y == 1) ? 1 : 0,
+                    TextAlign = HorizontalAlignment.Center,
+                    Font = new Font("Segoe UI", 9f),
+                    Margin = new Padding(3)
+                };
+                kernelGrid.Controls.Add(customKernelInputs[x, y], x, y);
+            }
+        }
+
+        TableLayoutPanel settingsLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3 };
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        Label lblFactor = new Label { Text = "Factor (Divisor):", Anchor = AnchorStyles.Left, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextSecondary };
+        nudFactor = new NumericUpDown { Minimum = 1, Maximum = 1000, Value = 1, Dock = DockStyle.Fill, Margin = new Padding(3) };
+
+        Label lblBias = new Label { Text = "Bias (Offset):", Anchor = AnchorStyles.Left, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextSecondary };
+        nudBias = new NumericUpDown { Minimum = -255, Maximum = 255, Value = 0, Dock = DockStyle.Fill, Margin = new Padding(3) };
+
+        btnApplyCustomKernel = CreatePrimaryButton("APPLY KERNEL", Colors.Primary);
+        btnApplyCustomKernel.Click += BtnApplyCustomKernel_Click;
+
+        settingsLayout.Controls.Add(lblFactor, 0, 0);
+        settingsLayout.Controls.Add(nudFactor, 1, 0);
+        settingsLayout.Controls.Add(lblBias, 0, 1);
+        settingsLayout.Controls.Add(nudBias, 1, 1);
+        settingsLayout.Controls.Add(btnApplyCustomKernel, 0, 2);
+        settingsLayout.SetColumnSpan(btnApplyCustomKernel, 2);
+
+        mainLayout.Controls.Add(kernelGrid, 0, 0);
+        mainLayout.Controls.Add(settingsLayout, 1, 0);
+
+        panel.Controls.Add(mainLayout);
+        panel.Controls.Add(title);
+        panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+        return panel;
+    }
+
+    private void BtnCustomKernel_Click(object sender, EventArgs e)
+    {
+        if (originalImage == null) return;
+        HideControlPanels();
+
+        isConvolutionActive = !isConvolutionActive;
+        convolutionControlPanel.Visible = isConvolutionActive;
+
+        if (isConvolutionActive)
+        {
+            btnCustomKernel.BackColor = Colors.DarkHover;
+            Controls.SetChildIndex(convolutionControlPanel, 1);
+        }
+        else
+        {
+            BtnReset_Click(null, null);
+            btnCustomKernel.BackColor = Colors.DarkTertiary;
+        }
+    }
+
+    private void BtnApplyCustomKernel_Click(object sender, EventArgs e)
+    {
+        float[,] kernel = new float[3, 3];
+        for (int y = 0; y < 3; y++)
+        {
+            for (int x = 0; x < 3; x++)
+            {
+                kernel[x, y] = (float)customKernelInputs[x, y].Value;
+            }
+        }
+
+        float factor = (float)nudFactor.Value;
+        int bias = (int)nudBias.Value;
+
+        ApplyConvolution(kernel, factor, bias);
+        lblInfo.Text = "Custom 3x3 convolution kernel applied.";
+    }
+
+    private void ApplyPredefinedConvolution(string type)
+    {
+        float[,] kernel;
+        float factor = 1;
+        int bias = 0;
+
+        switch (type)
+        {
+            case "GaussianBlur":
+                kernel = new float[,] { { 1, 2, 1 }, { 2, 4, 2 }, { 1, 2, 1 } };
+                factor = 16;
+                break;
+            case "Sharpen":
+                kernel = new float[,] { { 0, -1, 0 }, { -1, 5, -1 }, { 0, -1, 0 } };
+                break;
+            case "EdgeDetection": // Laplacian
+                kernel = new float[,] { { 0, 1, 0 }, { 1, -4, 1 }, { 0, 1, 0 } };
+                break;
+            default:
+                return;
+        }
+
+        ApplyConvolution(kernel, factor, bias);
+        lblInfo.Text = $"{type} filter applied.";
+    }
+
+    private void ApplyConvolution(float[,] kernel, float factor = 1.0f, int bias = 0)
+    {
+        if (originalImage is not Bitmap originalBmp) return;
+
+        HideControlPanels();
+        Bitmap resultBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
+
+        Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
+        BitmapData originalData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        BitmapData resultData = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+        int byteCount = originalData.Stride * originalData.Height;
+        byte[] originalBytes = new byte[byteCount];
+        byte[] resultBytes = new byte[byteCount];
+
+        Marshal.Copy(originalData.Scan0, originalBytes, 0, byteCount);
+
+        int stride = originalData.Stride;
+        int width = originalBmp.Width;
+        int height = originalBmp.Height;
+        int bytesPerPixel = 4;
+
+        for (int y = 1; y < height - 1; y++)
+        {
+            for (int x = 1; x < width - 1; x++)
+            {
+                float sumR = 0, sumG = 0, sumB = 0;
+
+                for (int ky = -1; ky <= 1; ky++)
+                {
+                    for (int kx = -1; kx <= 1; kx++)
+                    {
+                        int pixelPosX = x + kx;
+                        int pixelPosY = y + ky;
+                        int pos = pixelPosY * stride + pixelPosX * bytesPerPixel;
+
+                        float kernelVal = kernel[kx + 1, ky + 1];
+
+                        sumB += originalBytes[pos] * kernelVal;
+                        sumG += originalBytes[pos + 1] * kernelVal;
+                        sumR += originalBytes[pos + 2] * kernelVal;
+                    }
+                }
+
+                int currentPos = y * stride + x * bytesPerPixel;
+                byte finalB = (byte)Math.Max(0, Math.Min(255, (sumB / factor) + bias));
+                byte finalG = (byte)Math.Max(0, Math.Min(255, (sumG / factor) + bias));
+                byte finalR = (byte)Math.Max(0, Math.Min(255, (sumR / factor) + bias));
+
+                resultBytes[currentPos] = finalB;
+                resultBytes[currentPos + 1] = finalG;
+                resultBytes[currentPos + 2] = finalR;
+                resultBytes[currentPos + 3] = 255; // Alpha
+            }
+        }
+
+        Marshal.Copy(resultBytes, 0, resultData.Scan0, byteCount);
+
+        originalBmp.UnlockBits(originalData);
+        resultBmp.UnlockBits(resultData);
+
+        UpdatePictureBoxImage(resultBmp);
+    }
     }
 }
