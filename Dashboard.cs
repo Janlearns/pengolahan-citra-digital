@@ -15,7 +15,7 @@ namespace MyApps
     {
 
         private Button btnToggleMath, btnAddImage;
-        private FlowLayoutPanel mathLayout;
+        private FlowLayoutPanel mathLayout; //
 
         private Button btnAnalyzeMultiplication;
 
@@ -23,7 +23,7 @@ namespace MyApps
         private Label lblPath, lblInfo;
         private ProgressBar progressBar;
         private Button btnPilihGambar, btnEkstrakRGB, btnRed, btnGreen, btnBlue, btnGrayscale, btnHistogram, btnReset;
-        private Button btnBiner;
+        private Button btnBiner, btnZoomIn, btnZoomOut, btnFitToScreen;
         private string currentImagePath = string.Empty;
         private Image originalImage;
         private Panel welcomePanel;
@@ -70,6 +70,9 @@ namespace MyApps
         private Label lblXOffset, lblYOffset;
         private bool isTranslationActive = false;
         private Button btnTranslate;
+
+        private float zoomFactor = 1.0f;
+        private Label lblZoom;
 
 
         public enum MathOperation { Add, Multiply, Divide }
@@ -242,12 +245,20 @@ namespace MyApps
             toolsLayout = CreateCollapsedPanel();
             // TOMBOL: Mengembalikan tampilan gambar ke kondisi asli.
             btnReset = CreateButton("🔄 Reset View", Colors.DarkTertiary, false);
+            btnZoomIn = CreateButton("➕ Zoom In", Colors.DarkTertiary, false);
+            btnZoomOut = CreateButton("➖ Zoom Out", Colors.DarkTertiary, false);
+            btnFitToScreen = CreateButton("🔍 Fit to Screen", Colors.DarkTertiary, false);
             // TOMBOL: Mengekspor nilai R, G, B dari setiap piksel ke file teks.
             btnEkstrakRGB = CreateButton("📄 Export RGB Data (.txt)", Colors.DarkTertiary, false);
             // TOMBOL: Mengekspor nilai biner dari setiap channel R, G, B ke file teks.
             btnBiner = CreateButton("🔢 Export Binary Data (.txt)", Colors.DarkTertiary, false);
 
             // FUNGSI: Mengembalikan gambar ke aslinya.
+            btnZoomIn.Click += BtnZoomIn_Click;
+            btnZoomOut.Click += BtnZoomOut_Click;
+            btnFitToScreen.Click += BtnFitToScreen_Click;
+
+
             btnReset.Click += BtnReset_Click;
             // FUNGSI: Memanggil metode EkstrakRGBData.
             btnEkstrakRGB.Click += (s, e) => EkstrakRGBData();
@@ -255,6 +266,9 @@ namespace MyApps
             btnBiner.Click += BtnBiner_Click;
 
             toolsLayout.Controls.Add(btnReset);
+            toolsLayout.Controls.Add(btnZoomIn);
+            toolsLayout.Controls.Add(btnZoomOut);
+            toolsLayout.Controls.Add(btnFitToScreen);
             toolsLayout.Controls.Add(btnEkstrakRGB);
             toolsLayout.Controls.Add(btnBiner);
             toolsLayout.Visible = true; // Default open
@@ -345,6 +359,7 @@ namespace MyApps
             colorLayout.Controls.Add(btnGrayscale);
             colorLayout.Controls.Add(btnNegate);
             colorLayout.Controls.Add(btnBrightness);
+            colorLayout.Controls.Add(btnBlackWhite);
             colorLayout.Controls.Add(btnColorSelect);
             // FUNGSI: Mengatur visibilitas panel 'colorLayout'.
             btnToggleColor.Click += (s, e) => TogglePanelVisibility(colorLayout, btnToggleColor);
@@ -442,8 +457,6 @@ namespace MyApps
             buttonLayout.Controls.Add(btnToggleLogical);
             buttonLayout.Controls.Add(logicalLayout);
 
-
-            colorLayout.Controls.Add(btnBlackWhite);
             sidebar.Controls.Add(buttonLayout);
             return sidebar;
         }
@@ -604,13 +617,15 @@ namespace MyApps
             Panel canvasPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Colors.DarkSecondary,
-                BorderStyle = BorderStyle.None
+                BackColor = Colors.DarkPrimary, // Ubah background agar sesuai dengan tema
+                BorderStyle = BorderStyle.None,
+                AutoScroll = true // PENTING: Aktifkan auto-scroll
             };
 
             canvasPanel.Paint += (s, e) =>
             {
-                using (Pen borderPen = new Pen(Colors.Border, 1))
+                // Gambar border di sekitar panel, bukan di PictureBox
+                using (Pen borderPen = new Pen(Colors.DarkSecondary, 1))
                 {
                     e.Graphics.DrawRectangle(borderPen, 0, 0, canvasPanel.Width - 1, canvasPanel.Height - 1);
                 }
@@ -620,9 +635,9 @@ namespace MyApps
             {
                 Dock = DockStyle.Fill,
                 BackColor = Colors.DarkSecondary,
-                SizeMode = PictureBoxSizeMode.Zoom,
+                SizeMode = PictureBoxSizeMode.AutoSize, // PENTING: Ubah ke AutoSize
                 BorderStyle = BorderStyle.None,
-                Margin = new Padding(1)
+                Location = new Point(0, 0) // Mulai dari pojok kiri atas
             };
             pictureBox.MouseClick += PictureBox_MouseClick;
             welcomePanel = CreateWelcomePanel();
@@ -656,10 +671,11 @@ namespace MyApps
             TableLayoutPanel footerLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3, // Tambah satu kolom untuk Zoom
                 RowCount = 2,
                 Padding = new Padding(0)
             };
+            footerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120)); // Kolom untuk Zoom
             footerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             footerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
             footerLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
@@ -683,6 +699,16 @@ namespace MyApps
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
+            lblZoom = new Label
+            {
+                Text = "Zoom: 100%",
+                Dock = DockStyle.Fill,
+                ForeColor = Colors.TextSecondary,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Visible = false // Sembunyikan sampai ada gambar
+            };
+
             Label lblStatus = new Label
             {
                 Text = "STATUS: IDLE",
@@ -702,10 +728,11 @@ namespace MyApps
                 Margin = new Padding(0, 2, 0, 0)
             };
 
-            footerLayout.Controls.Add(lblPath, 0, 0);
-            footerLayout.Controls.Add(lblStatus, 1, 0);
-            footerLayout.Controls.Add(lblInfo, 0, 1);
-            footerLayout.Controls.Add(progressBar, 1, 1);
+            footerLayout.Controls.Add(lblPath, 1, 0);
+            footerLayout.Controls.Add(lblStatus, 2, 0);
+            footerLayout.Controls.Add(lblInfo, 1, 1);
+            footerLayout.Controls.Add(progressBar, 2, 1);
+            footerLayout.Controls.Add(lblZoom, 0, 1); // Tambahkan label zoom
 
             footer.Controls.Add(footerLayout);
             return footer;
@@ -853,6 +880,9 @@ namespace MyApps
         private void SetButtonsEnabled(bool enabled)
         {
 
+            btnZoomIn.Enabled = enabled;
+            btnZoomOut.Enabled = enabled;
+            btnFitToScreen.Enabled = enabled;
             btnReset.Enabled = enabled;
             btnEkstrakRGB.Enabled = enabled;
             btnBiner.Enabled = enabled;
@@ -887,6 +917,7 @@ namespace MyApps
 
 
             lblInfo.Text = enabled ? "Image loaded. Ready for processing." : "Ready";
+            lblZoom.Visible = enabled;
         }
 
 
@@ -925,13 +956,12 @@ namespace MyApps
                 }
 
                 welcomePanel.Visible = false;
-                pictureBox.Image?.Dispose();
-                // Selalu tampilkan salinan Bitmap agar originalImage tidak diubah
-                pictureBox.Image = new Bitmap((Bitmap)originalImage);
+                FitImageToScreen(); // Panggil Fit to Screen saat gambar baru dimuat
 
                 FileInfo fi = new FileInfo(currentImagePath);
                 lblPath.Text = Path.GetFileName(currentImagePath).ToUpper();
                 lblInfo.Text = $"{fi.Length / 1024:N0} KB · {((Bitmap)originalImage).Width} × {((Bitmap)originalImage).Height} px";
+
 
                 SetButtonsEnabled(true);
             }
@@ -945,9 +975,8 @@ namespace MyApps
         private void BtnReset_Click(object sender, EventArgs e)
         {
             if (originalImage == null) return;
-            pictureBox.Image?.Dispose();
-            pictureBox.Image = new Bitmap((Bitmap)originalImage);
-            lblInfo.Text = "View reset to original image.";
+            FitImageToScreen(); // Reset view sekarang berarti fit to screen
+            lblInfo.Text = "View reset to fit screen.";
         }
 
         
@@ -1864,52 +1893,57 @@ namespace MyApps
                 return;
             }
 
-            // 1. Dapatkan posisi piksel yang diklik pada gambar asli
-            // Karena PictureBoxSizeMode.Zoom digunakan, perlu menghitung koordinat asli.
-            int x = e.X;
-            int y = e.Y;
-
             // Koordinat gambar asli
             int targetX, targetY;
 
-            // Cek apakah gambar telah dimuat
-            if (originalImage.Width > 0 && originalImage.Height > 0)
+            if (pictureBox.SizeMode == PictureBoxSizeMode.AutoSize)
             {
-                // Hitung scaling factor dan offset
+                // Logika untuk mode AutoSize (saat di-zoom in/out)
+                // Koordinat e.X dan e.Y sudah relatif terhadap gambar yang di-zoom.
+                // Cukup dibagi dengan zoomFactor untuk mendapatkan koordinat di gambar asli.
+                targetX = (int)(e.X / zoomFactor);
+                targetY = (int)(e.Y / zoomFactor);
+            }
+            else // PictureBoxSizeMode.Zoom (saat fit to screen)
+            {
+                // Logika lama yang sudah benar untuk mode Zoom
+                int x = e.X;
+                int y = e.Y;
+
+                if (originalImage.Width <= 0 || originalImage.Height <= 0) return;
+
                 float imgRatio = (float)originalImage.Width / originalImage.Height;
-                float boxRatio = (float)pictureBox.Width / pictureBox.Height;
+                float boxRatio = (float)pictureBox.ClientSize.Width / pictureBox.ClientSize.Height;
 
                 int drawWidth, drawHeight, offsetX, offsetY;
 
-                if (imgRatio > boxRatio) // Dibatasi oleh lebar (Zoom Horizontal)
+                if (imgRatio > boxRatio) // Dibatasi oleh lebar
                 {
-                    drawWidth = pictureBox.Width;
-                    drawHeight = (int)(pictureBox.Width / imgRatio);
+                    drawWidth = pictureBox.ClientSize.Width;
+                    drawHeight = (int)(drawWidth / imgRatio);
                     offsetX = 0;
-                    offsetY = (pictureBox.Height - drawHeight) / 2;
+                    offsetY = (pictureBox.ClientSize.Height - drawHeight) / 2;
                 }
-                else // Dibatasi oleh tinggi (Zoom Vertical)
+                else // Dibatasi oleh tinggi
                 {
-                    drawWidth = (int)(pictureBox.Height * imgRatio);
-                    drawHeight = pictureBox.Height;
-                    offsetX = (pictureBox.Width - drawWidth) / 2;
+                    drawWidth = (int)(pictureBox.ClientSize.Height * imgRatio);
+                    drawHeight = pictureBox.ClientSize.Height;
+                    offsetX = (pictureBox.ClientSize.Width - drawWidth) / 2;
                     offsetY = 0;
                 }
 
-                // Konversi koordinat klik (x, y) ke koordinat gambar asli
-                if (x < offsetX || x > offsetX + drawWidth || y < offsetY || y > offsetY + drawHeight)
+                if (x < offsetX || x >= offsetX + drawWidth || y < offsetY || y >= offsetY + drawHeight)
                 {
-                    // Klik di area padding (di luar gambar yang dizoom)
                     lblInfo.Text = "Clicked outside the image area. Please click on the picture.";
                     return;
                 }
 
                 targetX = (int)(((float)(x - offsetX) / drawWidth) * originalImage.Width);
                 targetY = (int)(((float)(y - offsetY) / drawHeight) * originalImage.Height);
-
             }
-            else
+            
             {
+                // Fallback jika ada mode lain yang tidak terduga
                 return;
             }
 
@@ -2184,12 +2218,12 @@ namespace MyApps
                     // Pindahkan kembali titik pivot agar gambar asli tergambar di tengah
                     g.TranslateTransform(-originalBmp.Width / 2f, -originalBmp.Height / 2f);
 
-                    // Gambar citra asli ke atas kanvas yang sudah diputar
+                // Gambar citra asli ke atas kanvas yang sudah diputar dengan interpolasi yang baik
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                     g.DrawImage(originalBmp, new Point(0, 0));
                 }
 
-                pictureBox.Image?.Dispose();
-                pictureBox.Image = rotatedBmp;
+            UpdatePictureBoxImage(rotatedBmp);
 
                 if (isRotationActive)
                 {
@@ -2313,8 +2347,7 @@ namespace MyApps
                     g.DrawImage(originalBmp, new Rectangle(offsetX, offsetY, originalBmp.Width, originalBmp.Height));
                 }
 
-                pictureBox.Image?.Dispose();
-                pictureBox.Image = translatedBmp;
+                UpdatePictureBoxImage(translatedBmp);
 
                 lblInfo.Text = $"Image translated by (X:{offsetX}, Y:{offsetY}).";
                 originalBmp.Dispose();
@@ -2324,6 +2357,77 @@ namespace MyApps
                 MessageBox.Show($"Error during translation: {ex.Message}", "Translation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 BtnReset_Click(null, null);
             }
+        }
+
+        private void BtnZoomIn_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+            zoomFactor *= 1.25f; // Perbesar 25%
+            if (zoomFactor > 10.0f) zoomFactor = 10.0f; // Batas zoom maksimal 1000%
+            ApplyZoom();
+        }
+
+        private void BtnZoomOut_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+            zoomFactor /= 1.25f; // Perkecil 25%
+            if (zoomFactor < 0.1f) zoomFactor = 0.1f; // Batas zoom minimal 10%
+            ApplyZoom();
+        }
+
+        private void BtnFitToScreen_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+            FitImageToScreen();
+        }
+
+        private void ApplyZoom()
+        {
+            if (originalImage == null) return;
+
+            // Ubah SizeMode ke AutoSize agar ukuran PictureBox bisa diubah
+            pictureBox.SizeMode = PictureBoxSizeMode.AutoSize;
+
+            // Hitung ukuran baru berdasarkan faktor zoom
+            int newWidth = (int)(originalImage.Width * zoomFactor);
+            int newHeight = (int)(originalImage.Height * zoomFactor);
+
+            // Buat bitmap baru dengan ukuran yang sudah di-zoom
+            Bitmap zoomedBmp = new Bitmap(newWidth, newHeight);
+            using (Graphics g = Graphics.FromImage(zoomedBmp))
+            {
+                // Gunakan kualitas interpolasi tinggi untuk hasil yang lebih baik
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.DrawImage(originalImage, 0, 0, newWidth, newHeight);
+            }
+
+            // Terapkan gambar baru ke PictureBox
+            UpdatePictureBoxImage(zoomedBmp);
+
+            // Update label
+            lblZoom.Text = $"Zoom: {zoomFactor:P0}";
+            lblInfo.Text = $"Image zoomed to {zoomFactor:P0}.";
+        }
+
+        private void FitImageToScreen()
+        {
+            if (originalImage == null) return;
+
+            // Kembalikan SizeMode ke Zoom agar pas di layar
+            pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+            UpdatePictureBoxImage(new Bitmap(originalImage)); // Tampilkan gambar asli
+
+            // Hitung zoom factor yang efektif saat 'Fit to Screen'
+            Panel canvas = pictureBox.Parent as Panel;
+            if (canvas != null)
+            {
+                float ratioX = (float)canvas.ClientSize.Width / originalImage.Width;
+                float ratioY = (float)canvas.ClientSize.Height / originalImage.Height;
+                zoomFactor = Math.Min(ratioX, ratioY); // Faktor zoom adalah rasio terkecil
+            }
+
+            lblZoom.Text = $"Zoom: {zoomFactor:P0}";
+            lblInfo.Text = "Image fit to screen.";
         }
 
         
@@ -3023,7 +3127,7 @@ namespace MyApps
             Marshal.Copy(rgbValues, 0, data.Scan0, totalBytes);
             resultBmp.UnlockBits(data);
 
-            pictureBox.Image = resultBmp;
+            UpdatePictureBoxImage(resultBmp);
             lblInfo.Text = "Logical NOT (bitwise negation) operation completed.";
         }
 
@@ -3039,6 +3143,17 @@ namespace MyApps
                 pictureBox.Image?.Dispose();
             }
             base.Dispose(disposing);
+        }
+
+        /// <summary>
+        /// Helper method to safely update the PictureBox image, disposing the old one if necessary.
+        /// </summary>
+        /// <param name="newImage">The new image to display.</param>
+        private void UpdatePictureBoxImage(Image newImage)
+        {
+            Image oldImage = pictureBox.Image;
+            pictureBox.Image = newImage;
+            oldImage?.Dispose();
         }
     }
 }
