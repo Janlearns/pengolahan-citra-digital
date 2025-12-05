@@ -65,6 +65,13 @@ namespace MyApps
         private Label lblRotationAngle;
         private bool isRotationActive = false;
 
+        private Panel translationControlPanel;
+        private TrackBar xTranslationTrackBar, yTranslationTrackBar;
+        private Label lblXOffset, lblYOffset;
+        private bool isTranslationActive = false;
+        private Button btnTranslate;
+
+
         public enum MathOperation { Add, Multiply, Divide }
         public enum LogicalOperation { AND, OR, XOR, NOT }
 
@@ -104,6 +111,9 @@ namespace MyApps
 
             rotationControlPanel = CreateRotationControlPanel();
             Controls.Add(rotationControlPanel);
+
+            translationControlPanel = CreateTranslationControlPanel();
+            Controls.Add(translationControlPanel);
 
             sidebarPanel = CreateSidebar();
             Controls.Add(sidebarPanel);
@@ -365,18 +375,22 @@ namespace MyApps
             btnRotate270 = CreateButton("↩️ Rotate 270°", Colors.DarkTertiary, false);
             btnRotate45 = CreateButton("↗️ Rotate 45°", Colors.DarkTertiary, false);
             btnRotateFree = CreateButton("📐 Free Rotate", Colors.DarkTertiary, false);
+            btnTranslate = CreateButton("↔️ Translate / Pan", Colors.DarkTertiary, false);
 
             btnRotate90.Click += (s, e) => RotateImage(90);
             btnRotate180.Click += (s, e) => RotateImage(180);
             btnRotate270.Click += (s, e) => RotateImage(270);
             btnRotate45.Click += (s, e) => RotateImage(45);
             btnRotateFree.Click += BtnRotateFree_Click;
+            btnTranslate.Click += BtnTranslate_Click;
+
 
             rotationLayout.Controls.Add(btnRotate90);
             rotationLayout.Controls.Add(btnRotate180);
             rotationLayout.Controls.Add(btnRotate270);
             rotationLayout.Controls.Add(btnRotate45);
             rotationLayout.Controls.Add(btnRotateFree);
+            rotationLayout.Controls.Add(btnTranslate);
             btnToggleRotation.Click += (s, e) => TogglePanelVisibility(rotationLayout, btnToggleRotation);
 
 
@@ -867,6 +881,7 @@ namespace MyApps
             btnRotate180.Enabled = enabled;
             btnRotate270.Enabled = enabled;
             btnRotateFree.Enabled = enabled;
+            btnTranslate.Enabled = enabled;
 
 
 
@@ -2030,6 +2045,14 @@ namespace MyApps
                 rotationControlPanel.Visible = false;
                 btnRotateFree.BackColor = Colors.DarkTertiary;
             }
+
+            // Sembunyikan panel Translasi jika aktif
+            if (isTranslationActive)
+            {
+                isTranslationActive = false;
+                translationControlPanel.Visible = false;
+                btnTranslate.BackColor = Colors.DarkTertiary;
+            }
         }
 
         private Panel CreateRotationControlPanel()
@@ -2185,6 +2208,124 @@ namespace MyApps
                 BtnReset_Click(null, null);
             }
         }
+
+        private Panel CreateTranslationControlPanel()
+        {
+            Panel panel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 90,
+                BackColor = Colors.DarkSecondary,
+                Padding = new Padding(30, 10, 30, 10),
+                Visible = false
+            };
+
+            xTranslationTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = -500, Maximum = 500, Value = 0, TickFrequency = 50, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+            yTranslationTrackBar = new TrackBar { Dock = DockStyle.Fill, Minimum = -500, Maximum = 500, Value = 0, TickFrequency = 50, BackColor = Colors.DarkSecondary, Cursor = Cursors.Hand };
+
+            xTranslationTrackBar.Scroll += (s, e) => TranslationTrackBar_Scroll();
+            yTranslationTrackBar.Scroll += (s, e) => TranslationTrackBar_Scroll();
+
+            lblXOffset = new Label { Text = "X: 0px", Width = 100, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            lblYOffset = new Label { Text = "Y: 0px", Width = 100, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+
+            Label lblX = new Label { Text = "X-Axis", Width = 50, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+            Label lblY = new Label { Text = "Y-Axis", Width = 50, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextMuted, Font = new Font("Segoe UI", 9f) };
+
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Padding = new Padding(0), Margin = new Padding(0) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+
+            layout.Controls.Add(lblX, 0, 0);
+            layout.Controls.Add(xTranslationTrackBar, 1, 0);
+            layout.Controls.Add(lblXOffset, 2, 0);
+            layout.Controls.Add(lblY, 0, 1);
+            layout.Controls.Add(yTranslationTrackBar, 1, 1);
+            layout.Controls.Add(lblYOffset, 2, 1);
+
+            panel.Controls.Add(layout);
+            panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+            return panel;
+        }
+
+        private void BtnTranslate_Click(object sender, EventArgs e)
+        {
+            if (originalImage == null) return;
+
+            HideControlPanels();
+
+            isTranslationActive = !isTranslationActive;
+            translationControlPanel.Visible = isTranslationActive;
+
+            if (isTranslationActive)
+            {
+                // Set trackbar range based on image size
+                xTranslationTrackBar.Minimum = -originalImage.Width;
+                xTranslationTrackBar.Maximum = originalImage.Width;
+                yTranslationTrackBar.Minimum = -originalImage.Height;
+                yTranslationTrackBar.Maximum = originalImage.Height;
+
+                xTranslationTrackBar.Value = 0;
+                yTranslationTrackBar.Value = 0;
+
+                TranslationTrackBar_Scroll(); // Apply initial state (0,0)
+
+                btnTranslate.BackColor = Colors.DarkHover;
+                Controls.SetChildIndex(translationControlPanel, 1);
+            }
+            else
+            {
+                BtnReset_Click(null, null);
+                btnTranslate.BackColor = Colors.DarkTertiary;
+            }
+        }
+
+        private void TranslationTrackBar_Scroll()
+        {
+            int xOffset = xTranslationTrackBar.Value;
+            int yOffset = yTranslationTrackBar.Value;
+
+            lblXOffset.Text = $"X: {xOffset}px";
+            lblYOffset.Text = $"Y: {yOffset}px";
+
+            TranslateImage(xOffset, yOffset);
+        }
+
+        private void TranslateImage(int offsetX, int offsetY)
+        {
+            if (originalImage == null) return;
+
+            try
+            {
+                Bitmap originalBmp = new Bitmap(originalImage);
+                Bitmap translatedBmp = new Bitmap(originalBmp.Width, originalBmp.Height, originalBmp.PixelFormat);
+
+                using (Graphics g = Graphics.FromImage(translatedBmp))
+                {
+                    // Atur latar belakang transparan atau warna lain
+                    g.Clear(Color.Transparent);
+
+                    // Gambar citra asli dengan offset
+                    g.DrawImage(originalBmp, new Rectangle(offsetX, offsetY, originalBmp.Width, originalBmp.Height));
+                }
+
+                pictureBox.Image?.Dispose();
+                pictureBox.Image = translatedBmp;
+
+                lblInfo.Text = $"Image translated by (X:{offsetX}, Y:{offsetY}).";
+                originalBmp.Dispose();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error during translation: {ex.Message}", "Translation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                BtnReset_Click(null, null);
+            }
+        }
+
         
         /// Event handler untuk tombol tambah (+).
         /// Ini adalah shortcut yang langsung memanggil `BtnMathOperation_Click`
