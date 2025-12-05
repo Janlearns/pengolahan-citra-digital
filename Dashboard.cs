@@ -83,6 +83,18 @@ namespace MyApps
         private Label lblAmplitude, lblFrequency;
         private bool isRippleEffectActive = false;
 
+        // Kontrol untuk Konvolusi
+        private FlowLayoutPanel convolutionLayout;
+        private Button btnToggleConvolution;
+        private Button btnGaussianBlur, btnSharpen, btnEdgeDetection;
+        private Button btnCustomKernel;
+        private Panel convolutionControlPanel;
+        private NumericUpDown[,] customKernelInputs = new NumericUpDown[3, 3];
+        private NumericUpDown nudFactor, nudBias;
+        private Button btnApplyCustomKernel;
+        private bool isConvolutionActive = false;
+
+
         public enum MathOperation { Add, Multiply, Divide }
         public enum LogicalOperation { AND, OR, XOR, NOT }
 
@@ -128,6 +140,9 @@ namespace MyApps
 
             rippleControlPanel = CreateRippleControlPanel();
             Controls.Add(rippleControlPanel);
+
+            convolutionControlPanel = CreateConvolutionControlPanel();
+            Controls.Add(convolutionControlPanel);
 
             sidebarPanel = CreateSidebar();
             Controls.Add(sidebarPanel);
@@ -481,6 +496,26 @@ namespace MyApps
 
             buttonLayout.Controls.Add(btnToggleDistortion);
             buttonLayout.Controls.Add(distortionLayout);
+
+            // --- 7. CONVOLUTION / FILTERS ---
+            btnToggleConvolution = CreateToggleButton("🔬 CONVOLUTION / FILTERS", false);
+            convolutionLayout = CreateCollapsedPanel();
+            btnGaussianBlur = CreateButton("🌫️ Gaussian Blur", Colors.DarkTertiary, false);
+            btnSharpen = CreateButton("✨ Sharpen", Colors.DarkTertiary, false);
+            btnEdgeDetection = CreateButton("✒️ Edge Detection", Colors.DarkTertiary, false);
+            btnCustomKernel = CreateButton("⚙️ Custom 3x3 Kernel", Colors.DarkTertiary, false);
+
+            btnGaussianBlur.Click += (s, e) => ApplyPredefinedConvolution("GaussianBlur");
+            btnSharpen.Click += (s, e) => ApplyPredefinedConvolution("Sharpen");
+            btnEdgeDetection.Click += (s, e) => ApplyPredefinedConvolution("EdgeDetection");
+            btnCustomKernel.Click += BtnCustomKernel_Click;
+
+            convolutionLayout.Controls.AddRange(new Control[] { btnGaussianBlur, btnSharpen, btnEdgeDetection, btnCustomKernel });
+            btnToggleConvolution.Click += (s, e) => TogglePanelVisibility(convolutionLayout, btnToggleConvolution);
+
+            buttonLayout.Controls.Add(btnToggleConvolution);
+            buttonLayout.Controls.Add(convolutionLayout);
+
 
             sidebar.Controls.Add(buttonLayout);
             return sidebar;
@@ -940,6 +975,12 @@ namespace MyApps
 
             // Aktifkan tombol distorsi
             btnRippleEffect.Enabled = enabled;
+
+            // Aktifkan tombol konvolusi
+            btnGaussianBlur.Enabled = enabled;
+            btnSharpen.Enabled = enabled;
+            btnEdgeDetection.Enabled = enabled;
+            btnCustomKernel.Enabled = enabled;
 
 
 
@@ -2122,6 +2163,15 @@ namespace MyApps
                 rippleControlPanel.Visible = false;
                 btnRippleEffect.BackColor = Colors.DarkTertiary;
             }
+
+            // Sembunyikan panel Konvolusi jika aktif
+            if (isConvolutionActive)
+            {
+                isConvolutionActive = false;
+                convolutionControlPanel.Visible = false;
+                btnCustomKernel.BackColor = Colors.DarkTertiary;
+            }
+
         }
 
         private Panel CreateRotationControlPanel()
@@ -3343,5 +3393,209 @@ namespace MyApps
             pictureBox.Image = newImage;
             oldImage?.Dispose();
         }
+    
+
+    // --- Fitur Konvolusi ---
+
+    private Panel CreateConvolutionControlPanel()
+    {
+        Panel panel = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 160,
+            BackColor = Colors.DarkSecondary,
+            Padding = new Padding(20),
+            Visible = false
+        };
+
+        Label title = new Label { Text = "Custom 3x3 Kernel Matrix", Dock = DockStyle.Top, Height = 25, ForeColor = Colors.TextPrimary, Font = new Font("Segoe UI", 10f, FontStyle.Bold) };
+
+        TableLayoutPanel mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        TableLayoutPanel kernelGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3 };
+        for (int i = 0; i < 3; i++)
+        {
+            kernelGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+            kernelGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
+        }
+
+        for (int y = 0; y < 3; y++)
+        {
+            for (int x = 0; x < 3; x++)
+            {
+                customKernelInputs[x, y] = new NumericUpDown
+                {
+                    Dock = DockStyle.Fill,
+                    Minimum = -255,
+                    Maximum = 255,
+                    Value = (x == 1 && y == 1) ? 1 : 0,
+                    TextAlign = HorizontalAlignment.Center,
+                    Font = new Font("Segoe UI", 9f),
+                    Margin = new Padding(3)
+                };
+                kernelGrid.Controls.Add(customKernelInputs[x, y], x, y);
+            }
+        }
+
+        TableLayoutPanel settingsLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3 };
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        Label lblFactor = new Label { Text = "Factor (Divisor):", Anchor = AnchorStyles.Left, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextSecondary };
+        nudFactor = new NumericUpDown { Minimum = 1, Maximum = 1000, Value = 1, Dock = DockStyle.Fill, Margin = new Padding(3) };
+
+        Label lblBias = new Label { Text = "Bias (Offset):", Anchor = AnchorStyles.Left, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = Colors.TextSecondary };
+        nudBias = new NumericUpDown { Minimum = -255, Maximum = 255, Value = 0, Dock = DockStyle.Fill, Margin = new Padding(3) };
+
+        btnApplyCustomKernel = CreatePrimaryButton("APPLY KERNEL", Colors.Primary);
+        btnApplyCustomKernel.Click += BtnApplyCustomKernel_Click;
+
+        settingsLayout.Controls.Add(lblFactor, 0, 0);
+        settingsLayout.Controls.Add(nudFactor, 1, 0);
+        settingsLayout.Controls.Add(lblBias, 0, 1);
+        settingsLayout.Controls.Add(nudBias, 1, 1);
+        settingsLayout.Controls.Add(btnApplyCustomKernel, 0, 2);
+        settingsLayout.SetColumnSpan(btnApplyCustomKernel, 2);
+
+        mainLayout.Controls.Add(kernelGrid, 0, 0);
+        mainLayout.Controls.Add(settingsLayout, 1, 0);
+
+        panel.Controls.Add(mainLayout);
+        panel.Controls.Add(title);
+        panel.Paint += (s, e) => { using (Pen borderPen = new Pen(Colors.Border, 1)) { e.Graphics.DrawLine(borderPen, 0, 0, panel.Width, 0); } };
+
+        return panel;
+    }
+
+    private void BtnCustomKernel_Click(object sender, EventArgs e)
+    {
+        if (originalImage == null) return;
+        HideControlPanels();
+
+        isConvolutionActive = !isConvolutionActive;
+        convolutionControlPanel.Visible = isConvolutionActive;
+
+        if (isConvolutionActive)
+        {
+            btnCustomKernel.BackColor = Colors.DarkHover;
+            Controls.SetChildIndex(convolutionControlPanel, 1);
+        }
+        else
+        {
+            BtnReset_Click(null, null);
+            btnCustomKernel.BackColor = Colors.DarkTertiary;
+        }
+    }
+
+    private void BtnApplyCustomKernel_Click(object sender, EventArgs e)
+    {
+        float[,] kernel = new float[3, 3];
+        for (int y = 0; y < 3; y++)
+        {
+            for (int x = 0; x < 3; x++)
+            {
+                kernel[x, y] = (float)customKernelInputs[x, y].Value;
+            }
+        }
+
+        float factor = (float)nudFactor.Value;
+        int bias = (int)nudBias.Value;
+
+        ApplyConvolution(kernel, factor, bias);
+        lblInfo.Text = "Custom 3x3 convolution kernel applied.";
+    }
+
+    private void ApplyPredefinedConvolution(string type)
+    {
+        float[,] kernel;
+        float factor = 1;
+        int bias = 0;
+
+        switch (type)
+        {
+            case "GaussianBlur":
+                kernel = new float[,] { { 1, 2, 1 }, { 2, 4, 2 }, { 1, 2, 1 } };
+                factor = 16;
+                break;
+            case "Sharpen":
+                kernel = new float[,] { { 0, -1, 0 }, { -1, 5, -1 }, { 0, -1, 0 } };
+                break;
+            case "EdgeDetection": // Laplacian
+                kernel = new float[,] { { 0, 1, 0 }, { 1, -4, 1 }, { 0, 1, 0 } };
+                break;
+            default:
+                return;
+        }
+
+        ApplyConvolution(kernel, factor, bias);
+        lblInfo.Text = $"{type} filter applied.";
+    }
+
+    private void ApplyConvolution(float[,] kernel, float factor = 1.0f, int bias = 0)
+    {
+        if (originalImage is not Bitmap originalBmp) return;
+
+        HideControlPanels();
+        Bitmap resultBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
+
+        Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
+        BitmapData originalData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        BitmapData resultData = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+        int byteCount = originalData.Stride * originalData.Height;
+        byte[] originalBytes = new byte[byteCount];
+        byte[] resultBytes = new byte[byteCount];
+
+        Marshal.Copy(originalData.Scan0, originalBytes, 0, byteCount);
+
+        int stride = originalData.Stride;
+        int width = originalBmp.Width;
+        int height = originalBmp.Height;
+        int bytesPerPixel = 4;
+
+        for (int y = 1; y < height - 1; y++)
+        {
+            for (int x = 1; x < width - 1; x++)
+            {
+                float sumR = 0, sumG = 0, sumB = 0;
+
+                for (int ky = -1; ky <= 1; ky++)
+                {
+                    for (int kx = -1; kx <= 1; kx++)
+                    {
+                        int pixelPosX = x + kx;
+                        int pixelPosY = y + ky;
+                        int pos = pixelPosY * stride + pixelPosX * bytesPerPixel;
+
+                        float kernelVal = kernel[kx + 1, ky + 1];
+
+                        sumB += originalBytes[pos] * kernelVal;
+                        sumG += originalBytes[pos + 1] * kernelVal;
+                        sumR += originalBytes[pos + 2] * kernelVal;
+                    }
+                }
+
+                int currentPos = y * stride + x * bytesPerPixel;
+                byte finalB = (byte)Math.Max(0, Math.Min(255, (sumB / factor) + bias));
+                byte finalG = (byte)Math.Max(0, Math.Min(255, (sumG / factor) + bias));
+                byte finalR = (byte)Math.Max(0, Math.Min(255, (sumR / factor) + bias));
+
+                resultBytes[currentPos] = finalB;
+                resultBytes[currentPos + 1] = finalG;
+                resultBytes[currentPos + 2] = finalR;
+                resultBytes[currentPos + 3] = 255; // Alpha
+            }
+        }
+
+        Marshal.Copy(resultBytes, 0, resultData.Scan0, byteCount);
+
+        originalBmp.UnlockBits(originalData);
+        resultBmp.UnlockBits(resultData);
+
+        UpdatePictureBoxImage(resultBmp);
+    }
     }
 }
