@@ -26,3 +26,4 @@ E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\refint\MyApps.dll
 E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.pdb
 E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.genruntimeconfig.cache
 E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\ref\MyApps.dll
+E:\tubes_PCD\MyApps\obj\Debug\net9.0-windows\MyApps.sourcelink.json
