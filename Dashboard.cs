@@ -86,7 +86,7 @@ namespace MyApps
         // Kontrol untuk Konvolusi
         private FlowLayoutPanel convolutionLayout;
         private Button btnToggleConvolution;
-        private Button btnGaussianBlur, btnSharpen, btnEdgeDetection;
+        private Button btnGaussianBlur, btnSharpen, btnEdgeDetection, btnSobel, btnRoberts, btnCanny;
         private Button btnCustomKernel;
         private Panel convolutionControlPanel;
         private NumericUpDown[,] customKernelInputs = new NumericUpDown[3, 3];
@@ -503,14 +503,20 @@ namespace MyApps
             btnGaussianBlur = CreateButton("🌫️ Gaussian Blur", Colors.DarkTertiary, false);
             btnSharpen = CreateButton("✨ Sharpen", Colors.DarkTertiary, false);
             btnEdgeDetection = CreateButton("✒️ Edge Detection", Colors.DarkTertiary, false);
+            btnSobel = CreateButton("📐 Sobel (Gx + Gy)", Colors.DarkTertiary, false);
+            btnRoberts = CreateButton("❌ Roberts Cross", Colors.DarkTertiary, false);
+            btnCanny = CreateButton("🦀 Canny Edge Detection", Colors.DarkTertiary, false);
             btnCustomKernel = CreateButton("⚙️ Custom 3x3 Kernel", Colors.DarkTertiary, false);
 
             btnGaussianBlur.Click += (s, e) => ApplyPredefinedConvolution("GaussianBlur");
             btnSharpen.Click += (s, e) => ApplyPredefinedConvolution("Sharpen");
             btnEdgeDetection.Click += (s, e) => ApplyPredefinedConvolution("EdgeDetection");
+            btnSobel.Click += (s, e) => ApplySobelEdgeDetection();
+            btnRoberts.Click += (s, e) => ApplyRobertsEdgeDetection();
+            btnCanny.Click += (s, e) => ApplyCannyEdgeDetection();
             btnCustomKernel.Click += BtnCustomKernel_Click;
 
-            convolutionLayout.Controls.AddRange(new Control[] { btnGaussianBlur, btnSharpen, btnEdgeDetection, btnCustomKernel });
+            convolutionLayout.Controls.AddRange(new Control[] { btnGaussianBlur, btnSharpen, btnEdgeDetection, btnSobel, btnRoberts, btnCanny, btnCustomKernel });
             btnToggleConvolution.Click += (s, e) => TogglePanelVisibility(convolutionLayout, btnToggleConvolution);
 
             buttonLayout.Controls.Add(btnToggleConvolution);
@@ -980,6 +986,9 @@ namespace MyApps
             btnGaussianBlur.Enabled = enabled;
             btnSharpen.Enabled = enabled;
             btnEdgeDetection.Enabled = enabled;
+            btnSobel.Enabled = enabled;
+            btnRoberts.Enabled = enabled;
+            btnCanny.Enabled = enabled;
             btnCustomKernel.Enabled = enabled;
 
 
@@ -3506,6 +3515,277 @@ namespace MyApps
 
         ApplyConvolution(kernel, factor, bias);
         lblInfo.Text = "Custom 3x3 convolution kernel applied.";
+    }
+
+    private void ApplySobelEdgeDetection()
+    {
+        if (originalImage is not Bitmap originalBmp) return;
+
+        HideControlPanels();
+        Bitmap resultBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
+
+        Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
+        BitmapData originalData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        BitmapData resultData = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+        int byteCount = originalData.Stride * originalData.Height;
+        byte[] originalBytes = new byte[byteCount];
+        byte[] resultBytes = new byte[byteCount];
+
+        Marshal.Copy(originalData.Scan0, originalBytes, 0, byteCount);
+
+        int stride = originalData.Stride;
+        int width = originalBmp.Width;
+        int height = originalBmp.Height;
+        int bytesPerPixel = 4;
+
+        // Definisi Kernel Sobel X dan Sobel Y
+        int[,] gx = new int[,] { { -1, 0, 1 }, { -2, 0, 2 }, { -1, 0, 1 } };
+        int[,] gy = new int[,] { { 1, 2, 1 }, { 0, 0, 0 }, { -1, -2, -1 } };
+
+        for (int y = 1; y < height - 1; y++)
+        {
+            for (int x = 1; x < width - 1; x++)
+            {
+                double sumX_B = 0, sumX_G = 0, sumX_R = 0;
+                double sumY_B = 0, sumY_G = 0, sumY_R = 0;
+
+                // Konvolusi terpisah untuk Sobel X dan Sobel Y
+                for (int ky = -1; ky <= 1; ky++)
+                {
+                    for (int kx = -1; kx <= 1; kx++)
+                    {
+                        int pos = (y + ky) * stride + (x + kx) * bytesPerPixel;
+                        byte b = originalBytes[pos];
+                        byte g = originalBytes[pos + 1];
+                        byte r = originalBytes[pos + 2];
+
+                        // Hitung gradien X
+                        sumX_B += b * gx[ky + 1, kx + 1];
+                        sumX_G += g * gx[ky + 1, kx + 1];
+                        sumX_R += r * gx[ky + 1, kx + 1];
+
+                        // Hitung gradien Y
+                        sumY_B += b * gy[ky + 1, kx + 1];
+                        sumY_G += g * gy[ky + 1, kx + 1];
+                        sumY_R += r * gy[ky + 1, kx + 1];
+                    }
+                }
+
+                // Satukan kembali (Magnitude = sqrt(Gx^2 + Gy^2))
+                int currentPos = y * stride + x * bytesPerPixel;
+                resultBytes[currentPos] = (byte)Math.Min(255, Math.Sqrt(sumX_B * sumX_B + sumY_B * sumY_B));     // B
+                resultBytes[currentPos + 1] = (byte)Math.Min(255, Math.Sqrt(sumX_G * sumX_G + sumY_G * sumY_G)); // G
+                resultBytes[currentPos + 2] = (byte)Math.Min(255, Math.Sqrt(sumX_R * sumX_R + sumY_R * sumY_R)); // R
+                resultBytes[currentPos + 3] = 255; // Alpha
+            }
+        }
+
+        Marshal.Copy(resultBytes, 0, resultData.Scan0, byteCount);
+        originalBmp.UnlockBits(originalData);
+        resultBmp.UnlockBits(resultData);
+
+        UpdatePictureBoxImage(resultBmp);
+        lblInfo.Text = "Sobel Edge Detection applied (Combined X & Y).";
+    }
+
+    private void ApplyRobertsEdgeDetection()
+    {
+        if (originalImage is not Bitmap originalBmp) return;
+
+        HideControlPanels();
+        Bitmap resultBmp = new Bitmap(originalBmp.Width, originalBmp.Height, PixelFormat.Format32bppArgb);
+
+        Rectangle rect = new Rectangle(0, 0, originalBmp.Width, originalBmp.Height);
+        BitmapData originalData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        BitmapData resultData = resultBmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+
+        int byteCount = originalData.Stride * originalData.Height;
+        byte[] originalBytes = new byte[byteCount];
+        byte[] resultBytes = new byte[byteCount];
+
+        Marshal.Copy(originalData.Scan0, originalBytes, 0, byteCount);
+
+        int stride = originalData.Stride;
+        int width = originalBmp.Width;
+        int height = originalBmp.Height;
+        int bytesPerPixel = 4;
+
+        for (int y = 0; y < height - 1; y++)
+        {
+            for (int x = 0; x < width - 1; x++)
+            {
+                int currentPos = y * stride + x * bytesPerPixel;
+                int nextXPos = y * stride + (x + 1) * bytesPerPixel;
+                int nextYPos = (y + 1) * stride + x * bytesPerPixel;
+                int nextXYPos = (y + 1) * stride + (x + 1) * bytesPerPixel;
+
+                for (int i = 0; i < 3; i++) // B, G, R
+                {
+                    int p00 = originalBytes[currentPos + i];
+                    int p01 = originalBytes[nextXPos + i];
+                    int p10 = originalBytes[nextYPos + i];
+                    int p11 = originalBytes[nextXYPos + i];
+
+                    // Roberts Cross
+                    // Gx = [[1, 0], [0, -1]] => p(x,y) - p(x+1,y+1)
+                    // Gy = [[0, 1], [-1, 0]] => p(x+1,y) - p(x,y+1)
+                    
+                    int gx = p00 - p11;
+                    int gy = p01 - p10;
+
+                    int magnitude = (int)Math.Sqrt(gx * gx + gy * gy);
+                    resultBytes[currentPos + i] = (byte)Math.Min(255, magnitude);
+                }
+                resultBytes[currentPos + 3] = 255; // Alpha
+            }
+        }
+
+        Marshal.Copy(resultBytes, 0, resultData.Scan0, byteCount);
+        originalBmp.UnlockBits(originalData);
+        resultBmp.UnlockBits(resultData);
+
+        UpdatePictureBoxImage(resultBmp);
+        lblInfo.Text = "Roberts Cross Edge Detection applied.";
+    }
+
+    private void ApplyCannyEdgeDetection()
+    {
+        if (originalImage is not Bitmap originalBmp) return;
+
+        HideControlPanels();
+        
+        int width = originalBmp.Width;
+        int height = originalBmp.Height;
+        
+        // 1. Grayscale Conversion
+        int[,] gray = new int[width, height];
+        Rectangle rect = new Rectangle(0, 0, width, height);
+        BitmapData srcData = originalBmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        int bytes = srcData.Stride * height;
+        byte[] srcBytes = new byte[bytes];
+        Marshal.Copy(srcData.Scan0, srcBytes, 0, bytes);
+        originalBmp.UnlockBits(srcData);
+        
+        int stride = srcData.Stride;
+        for(int y=0; y<height; y++) {
+            for(int x=0; x<width; x++) {
+                int idx = y*stride + x*4;
+                byte b = srcBytes[idx];
+                byte g = srcBytes[idx+1];
+                byte r = srcBytes[idx+2];
+                gray[x,y] = (int)(r*0.299 + g*0.587 + b*0.114);
+            }
+        }
+        
+        // 2. Gaussian Blur (5x5)
+        int[,] blurred = new int[width, height];
+        int[,] gaussianKernel = { {2,4,5,4,2}, {4,9,12,9,4}, {5,12,15,12,5}, {4,9,12,9,4}, {2,4,5,4,2} };
+        int kernelSum = 159;
+        
+        for(int y=2; y<height-2; y++) {
+            for(int x=2; x<width-2; x++) {
+                int sum = 0;
+                for(int ky=-2; ky<=2; ky++) {
+                    for(int kx=-2; kx<=2; kx++) {
+                        sum += gray[x+kx, y+ky] * gaussianKernel[kx+2, ky+2];
+                    }
+                }
+                blurred[x,y] = sum / kernelSum;
+            }
+        }
+        
+        // 3. Sobel Gradients
+        double[,] gradient = new double[width, height];
+        double[,] angle = new double[width, height];
+        int[,] gx = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
+        int[,] gy = {{1, 2, 1}, {0, 0, 0}, {-1, -2, -1}};
+        
+        for(int y=1; y<height-1; y++) {
+            for(int x=1; x<width-1; x++) {
+                double sumX = 0, sumY = 0;
+                for(int ky=-1; ky<=1; ky++) {
+                    for(int kx=-1; kx<=1; kx++) {
+                        int val = blurred[x+kx, y+ky];
+                        sumX += val * gx[ky+1, kx+1];
+                        sumY += val * gy[ky+1, kx+1];
+                    }
+                }
+                gradient[x,y] = Math.Sqrt(sumX*sumX + sumY*sumY);
+                double theta = Math.Atan2(sumY, sumX) * 180.0 / Math.PI;
+                if (theta < 0) theta += 180;
+                angle[x,y] = theta;
+            }
+        }
+        
+        // 4. Non-Maximum Suppression
+        int[,] nms = new int[width, height];
+        for(int y=1; y<height-1; y++) {
+            for(int x=1; x<width-1; x++) {
+                double q = 255, r = 255;
+                double ang = angle[x,y];
+                
+                if ((ang >= 0 && ang < 22.5) || (ang >= 157.5 && ang <= 180)) {
+                    q = gradient[x+1, y]; r = gradient[x-1, y];
+                } else if (ang >= 22.5 && ang < 67.5) {
+                    q = gradient[x+1, y+1]; r = gradient[x-1, y-1];
+                } else if (ang >= 67.5 && ang < 112.5) {
+                    q = gradient[x, y+1]; r = gradient[x, y-1];
+                } else if (ang >= 112.5 && ang < 157.5) {
+                    q = gradient[x-1, y+1]; r = gradient[x+1, y-1];
+                }
+                
+                if (gradient[x,y] >= q && gradient[x,y] >= r) nms[x,y] = (int)gradient[x,y];
+                else nms[x,y] = 0;
+            }
+        }
+        
+        // 5. Double Threshold & Hysteresis
+        int lowThreshold = 30;
+        int highThreshold = 90;
+        int[,] edges = new int[width, height];
+        
+        for(int y=1; y<height-1; y++) {
+            for(int x=1; x<width-1; x++) {
+                if (nms[x,y] >= highThreshold) edges[x,y] = 255;
+                else if (nms[x,y] >= lowThreshold) edges[x,y] = 128;
+                else edges[x,y] = 0;
+            }
+        }
+        
+        bool changed = true;
+        while(changed) {
+            changed = false;
+            for(int y=1; y<height-1; y++) {
+                for(int x=1; x<width-1; x++) {
+                    if (edges[x,y] == 128) {
+                        if (edges[x-1,y-1]==255 || edges[x,y-1]==255 || edges[x+1,y-1]==255 ||
+                            edges[x-1,y]==255   ||                      edges[x+1,y]==255 ||
+                            edges[x-1,y+1]==255 || edges[x,y+1]==255 || edges[x+1,y+1]==255) {
+                                edges[x,y] = 255;
+                                changed = true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        Bitmap resultBmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+        BitmapData resData = resultBmp.LockBits(new Rectangle(0,0,width,height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        byte[] resBytes = new byte[bytes];
+        
+        for(int y=0; y<height; y++) {
+            for(int x=0; x<width; x++) {
+                int val = (edges[x,y] == 255) ? 255 : 0;
+                int idx = y*stride + x*4;
+                resBytes[idx] = (byte)val; resBytes[idx+1] = (byte)val; resBytes[idx+2] = (byte)val; resBytes[idx+3] = 255;
+            }
+        }
+        
+        Marshal.Copy(resBytes, 0, resData.Scan0, bytes);
+        resultBmp.UnlockBits(resData);
+        UpdatePictureBoxImage(resultBmp);
+        lblInfo.Text = "Canny Edge Detection applied.";
     }
 
     private void ApplyPredefinedConvolution(string type)
