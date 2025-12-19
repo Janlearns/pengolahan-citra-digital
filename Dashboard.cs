@@ -22,7 +22,7 @@ namespace MyApps
         private PictureBox pictureBox;
         private Label lblPath, lblInfo;
         private ProgressBar progressBar;
-        private Button btnPilihGambar, btnEkstrakRGB, btnRed, btnGreen, btnBlue, btnGrayscale, btnHistogram, btnReset;
+        private Button btnPilihGambar, btnEkstrakRGB, btnRed, btnGreen, btnBlue, btnGrayscale, btnHistogram, btnHistogramEqualization, btnLinearStretch, btnAdaptiveEqualization, btnReset;
         private Button btnBiner, btnZoomIn, btnZoomOut, btnFitToScreen;
         private string currentImagePath = string.Empty;
         private Image originalImage;
@@ -399,8 +399,23 @@ namespace MyApps
 
             // FUNGSI: Menghitung dan menampilkan histogram.
             btnHistogram.Click += BtnHistogram_Click;
+            
+            // TOMBOL: Menerapkan Histogram Equalization.
+            btnHistogramEqualization = CreateButton("⚖️ Histogram Equalization", Colors.DarkTertiary, false);
+            btnHistogramEqualization.Click += BtnHistogramEqualization_Click;
+
+            // TOMBOL: Menerapkan Linear Stretch (Contrast Stretching).
+            btnLinearStretch = CreateButton("📏 Linear Stretch", Colors.DarkTertiary, false);
+            btnLinearStretch.Click += BtnLinearStretch_Click;
+
+            // TOMBOL: Menerapkan Adaptive Histogram Equalization (CLAHE).
+            btnAdaptiveEqualization = CreateButton("⚡ Adaptive Equalization", Colors.DarkTertiary, false);
+            btnAdaptiveEqualization.Click += BtnAdaptiveEqualization_Click;
 
             analysisLayout.Controls.Add(btnHistogram);
+            analysisLayout.Controls.Add(btnHistogramEqualization);
+            analysisLayout.Controls.Add(btnLinearStretch);
+            analysisLayout.Controls.Add(btnAdaptiveEqualization);
             // FUNGSI: Mengatur visibilitas panel 'analysisLayout'.
             btnToggleAnalysis.Click += (s, e) => TogglePanelVisibility(analysisLayout, btnToggleAnalysis);
 
@@ -957,6 +972,9 @@ namespace MyApps
             btnBlue.Enabled = enabled;
             btnGrayscale.Enabled = enabled;
             btnHistogram.Enabled = enabled;
+            btnHistogramEqualization.Enabled = enabled;
+            btnAdaptiveEqualization.Enabled = enabled;
+            btnLinearStretch.Enabled = enabled;
             btnBlackWhite.Enabled = enabled;
             btnNegate.Enabled = enabled;
             btnBrightness.Enabled = enabled;
@@ -1388,6 +1406,315 @@ namespace MyApps
                 }
             }
         }
+
+        private void BtnHistogramEqualization_Click(object sender, EventArgs e)
+        {
+            ApplyHistogramEqualization();
+        }
+
+        private void ApplyHistogramEqualization()
+        {
+            if (originalImage is not Bitmap originalBmp) return;
+
+            try
+            {
+                HideControlPanels();
+                BtnReset_Click(null, null); // Reset ke gambar original sebelum memproses
+
+                Bitmap currentBmp = (Bitmap)pictureBox.Image;
+                Rectangle rect = new Rectangle(0, 0, currentBmp.Width, currentBmp.Height);
+                BitmapData bmpData = currentBmp.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+
+                int bytes = Math.Abs(bmpData.Stride) * currentBmp.Height;
+                byte[] rgbValues = new byte[bytes];
+                Marshal.Copy(bmpData.Scan0, rgbValues, 0, bytes);
+
+                // 1. Hitung Histogram untuk setiap channel
+                long[] histR = new long[256];
+                long[] histG = new long[256];
+                long[] histB = new long[256];
+
+                for (int i = 0; i < bytes; i += 4)
+                {
+                    histB[rgbValues[i]]++;
+                    histG[rgbValues[i + 1]]++;
+                    histR[rgbValues[i + 2]]++;
+                }
+
+                // 2. Hitung Cumulative Distribution Function (CDF)
+                long[] cdfR = new long[256];
+                long[] cdfG = new long[256];
+                long[] cdfB = new long[256];
+
+                cdfR[0] = histR[0];
+                cdfG[0] = histG[0];
+                cdfB[0] = histB[0];
+
+                for (int i = 1; i < 256; i++)
+                {
+                    cdfR[i] = cdfR[i - 1] + histR[i];
+                    cdfG[i] = cdfG[i - 1] + histG[i];
+                    cdfB[i] = cdfB[i - 1] + histB[i];
+                }
+
+                // 3. Normalisasi CDF dan Mapping
+                long totalPixels = currentBmp.Width * currentBmp.Height;
+                
+                // 4. Terapkan Mapping ke Piksel
+                for (int i = 0; i < bytes; i += 4)
+                {
+                    rgbValues[i]     = (byte)((cdfB[rgbValues[i]] * 255) / totalPixels);     // B
+                    rgbValues[i + 1] = (byte)((cdfG[rgbValues[i + 1]] * 255) / totalPixels); // G
+                    rgbValues[i + 2] = (byte)((cdfR[rgbValues[i + 2]] * 255) / totalPixels); // R
+                }
+
+                Marshal.Copy(rgbValues, 0, bmpData.Scan0, bytes);
+                currentBmp.UnlockBits(bmpData);
+
+                pictureBox.Invalidate();
+                lblInfo.Text = "Histogram Equalization applied (RGB Channels).";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error applying Histogram Equalization: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                BtnReset_Click(null, null);
+            }
+        }
+
+        private void BtnLinearStretch_Click(object sender, EventArgs e)
+        {
+            ApplyLinearStretch();
+        }
+
+        private void ApplyLinearStretch()
+        {
+            if (originalImage is not Bitmap originalBmp) return;
+
+            try
+            {
+                HideControlPanels();
+                BtnReset_Click(null, null); // Reset ke gambar original
+
+                Bitmap currentBmp = (Bitmap)pictureBox.Image;
+                Rectangle rect = new Rectangle(0, 0, currentBmp.Width, currentBmp.Height);
+                BitmapData bmpData = currentBmp.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+
+                int bytes = Math.Abs(bmpData.Stride) * currentBmp.Height;
+                byte[] rgbValues = new byte[bytes];
+                Marshal.Copy(bmpData.Scan0, rgbValues, 0, bytes);
+
+                // --- PERBAIKAN: Gunakan Histogram Clipping (1%) ---
+                // Ini mencegah 1 piksel noise (0 atau 255) membatalkan efek stretching.
+                
+                int[] histR = new int[256];
+                int[] histG = new int[256];
+                int[] histB = new int[256];
+
+                // 1. Hitung Histogram
+                for (int i = 0; i < bytes; i += 4)
+                {
+                    histB[rgbValues[i]]++;
+                    histG[rgbValues[i + 1]]++;
+                    histR[rgbValues[i + 2]]++;
+                }
+
+                int totalPixels = currentBmp.Width * currentBmp.Height;
+                int clipLimit = (int)(totalPixels * 0.01); // Clip 1% dari bawah dan atas
+
+                // Fungsi lokal untuk mencari min/max berdasarkan threshold clipping
+                byte GetClippedMin(int[] hist) {
+                    int count = 0;
+                    for (int i = 0; i < 256; i++) {
+                        count += hist[i];
+                        if (count > clipLimit) return (byte)i;
+                    }
+                    return 0;
+                }
+                byte GetClippedMax(int[] hist) {
+                    int count = 0;
+                    for (int i = 255; i >= 0; i--) {
+                        count += hist[i];
+                        if (count > clipLimit) return (byte)i;
+                    }
+                    return 255;
+                }
+
+                byte minR = GetClippedMin(histR); byte maxR = GetClippedMax(histR);
+                byte minG = GetClippedMin(histG); byte maxG = GetClippedMax(histG);
+                byte minB = GetClippedMin(histB); byte maxB = GetClippedMax(histB);
+
+                // 2. Hitung skala (jika max <= min, biarkan skala 1 agar tidak error)
+                double scaleR = (maxR > minR) ? 255.0 / (maxR - minR) : 1.0;
+                double scaleG = (maxG > minG) ? 255.0 / (maxG - minG) : 1.0;
+                double scaleB = (maxB > minB) ? 255.0 / (maxB - minB) : 1.0;
+
+                // 3. Terapkan rumus dengan Clamping (batas 0-255)
+                for (int i = 0; i < bytes; i += 4)
+                {
+                    rgbValues[i]     = (byte)Math.Max(0, Math.Min(255, (rgbValues[i] - minB) * scaleB));     // B
+                    rgbValues[i + 1] = (byte)Math.Max(0, Math.Min(255, (rgbValues[i + 1] - minG) * scaleG)); // G
+                    rgbValues[i + 2] = (byte)Math.Max(0, Math.Min(255, (rgbValues[i + 2] - minR) * scaleR)); // R
+                }
+
+                Marshal.Copy(rgbValues, 0, bmpData.Scan0, bytes);
+                currentBmp.UnlockBits(bmpData);
+
+                pictureBox.Invalidate();
+                lblInfo.Text = $"Linear Stretch (1% Clip) applied. R:[{minR}-{maxR}], G:[{minG}-{maxG}], B:[{minB}-{maxB}]";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error applying Linear Stretch: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                BtnReset_Click(null, null);
+            }
+        }
+
+        private void BtnAdaptiveEqualization_Click(object sender, EventArgs e)
+        {
+            ApplyAdaptiveEqualization();
+        }
+
+        private void ApplyAdaptiveEqualization(int gridSize = 8, double clipFactor = 4.0)
+        {
+            if (originalImage is not Bitmap originalBmp) return;
+
+            try
+            {
+                HideControlPanels();
+                BtnReset_Click(null, null); // Reset ke gambar original
+
+                Bitmap currentBmp = (Bitmap)pictureBox.Image;
+                Rectangle rect = new Rectangle(0, 0, currentBmp.Width, currentBmp.Height);
+                BitmapData bmpData = currentBmp.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+
+                int bytes = Math.Abs(bmpData.Stride) * currentBmp.Height;
+                byte[] rgbValues = new byte[bytes];
+                Marshal.Copy(bmpData.Scan0, rgbValues, 0, bytes);
+
+                int width = currentBmp.Width;
+                int height = currentBmp.Height;
+                int stride = bmpData.Stride;
+
+                // Dimensi tile
+                int tileWidth = Math.Max(1, width / gridSize);
+                int tileHeight = Math.Max(1, height / gridSize);
+
+                // 1. Buat LUT untuk setiap tile dan setiap channel
+                byte[,,] lutR = new byte[gridSize, gridSize, 256];
+                byte[,,] lutG = new byte[gridSize, gridSize, 256];
+                byte[,,] lutB = new byte[gridSize, gridSize, 256];
+
+                int numPixelsPerTile = tileWidth * tileHeight;
+                int clipLimit = (int)(clipFactor * numPixelsPerTile / 256);
+                if (clipLimit < 1) clipLimit = 1;
+
+                for (int ty = 0; ty < gridSize; ty++)
+                {
+                    for (int tx = 0; tx < gridSize; tx++)
+                    {
+                        int startX = tx * tileWidth;
+                        int startY = ty * tileHeight;
+                        int endX = startX + tileWidth;
+                        int endY = startY + tileHeight;
+
+                        int[] histR = new int[256], histG = new int[256], histB = new int[256];
+                        int excessR = 0, excessG = 0, excessB = 0;
+
+                        for (int y = startY; y < endY; y++)
+                        {
+                            for (int x = startX; x < endX; x++)
+                            {
+                                int pos = y * stride + x * 4;
+                                histB[rgbValues[pos]]++;
+                                histG[rgbValues[pos + 1]]++;
+                                histR[rgbValues[pos + 2]]++;
+                            }
+                        }
+
+                        // Clip histogram dan redistribusi kelebihan
+                        for (int i = 0; i < 256; i++)
+                        {
+                            if (histR[i] > clipLimit) { excessR += histR[i] - clipLimit; histR[i] = clipLimit; }
+                            if (histG[i] > clipLimit) { excessG += histG[i] - clipLimit; histG[i] = clipLimit; }
+                            if (histB[i] > clipLimit) { excessB += histB[i] - clipLimit; histB[i] = clipLimit; }
+                        }
+                        int avgIncR = excessR / 256, avgIncG = excessG / 256, avgIncB = excessB / 256;
+                        for (int i = 0; i < 256; i++)
+                        {
+                            histR[i] += avgIncR; histG[i] += avgIncG; histB[i] += avgIncB;
+                        }
+
+                        // Hitung CDF
+                        long[] cdfR = new long[256], cdfG = new long[256], cdfB = new long[256];
+                        cdfR[0] = histR[0]; cdfG[0] = histG[0]; cdfB[0] = histB[0];
+                        for (int i = 1; i < 256; i++)
+                        {
+                            cdfR[i] = cdfR[i - 1] + histR[i];
+                            cdfG[i] = cdfG[i - 1] + histG[i];
+                            cdfB[i] = cdfB[i - 1] + histB[i];
+                        }
+
+                        // Buat LUT untuk tile ini
+                        for (int i = 0; i < 256; i++)
+                        {
+                            lutR[tx, ty, i] = (byte)Math.Min(255, (cdfR[i] * 255) / numPixelsPerTile);
+                            lutG[tx, ty, i] = (byte)Math.Min(255, (cdfG[i] * 255) / numPixelsPerTile);
+                            lutB[tx, ty, i] = (byte)Math.Min(255, (cdfB[i] * 255) / numPixelsPerTile);
+                        }
+                    }
+                }
+
+                // 2. Interpolasi Bilinear
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int tileX = x / tileWidth;
+                        int tileY = y / tileHeight;
+
+                        // FIX: Clamp indices agar tidak melebihi batas array (gridSize)
+                        if (tileX >= gridSize) tileX = gridSize - 1;
+                        if (tileY >= gridSize) tileY = gridSize - 1;
+
+                        float xWeight = (x % tileWidth) / (float)tileWidth;
+                        float yWeight = (y % tileHeight) / (float)tileHeight;
+                        int tx2 = Math.Min(gridSize - 1, tileX + 1), ty2 = Math.Min(gridSize - 1, tileY + 1);
+                        int pos = y * stride + x * 4;
+
+                        // Interpolasi untuk setiap channel
+                        rgbValues[pos] = Interpolate(rgbValues[pos], lutB, tileX, tileY, tx2, ty2, xWeight, yWeight);
+                        rgbValues[pos + 1] = Interpolate(rgbValues[pos + 1], lutG, tileX, tileY, tx2, ty2, xWeight, yWeight);
+                        rgbValues[pos + 2] = Interpolate(rgbValues[pos + 2], lutR, tileX, tileY, tx2, ty2, xWeight, yWeight);
+                    }
+                }
+
+                Marshal.Copy(rgbValues, 0, bmpData.Scan0, bytes);
+                currentBmp.UnlockBits(bmpData);
+
+                pictureBox.Invalidate();
+                lblInfo.Text = $"Adaptive Equalization (CLAHE) applied. Grid: {gridSize}x{gridSize}, Clip: {clipFactor}.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error applying Adaptive Equalization: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                BtnReset_Click(null, null);
+            }
+        }
+
+        private byte Interpolate(byte value, byte[,,] lut, int tx1, int ty1, int tx2, int ty2, float xWeight, float yWeight)
+        {
+            float val_tl = lut[tx1, ty1, value];
+            float val_tr = lut[tx2, ty1, value];
+            float val_bl = lut[tx1, ty2, value];
+            float val_br = lut[tx2, ty2, value];
+
+            float top = (1 - xWeight) * val_tl + xWeight * val_tr;
+            float bottom = (1 - xWeight) * val_bl + xWeight * val_br;
+
+            float result = (1 - yWeight) * top + yWeight * bottom;
+            return (byte)Math.Max(0, Math.Min(255, result));
+        }
+
         private Panel CreateBlackWhiteControlPanel()
         {
             Panel panel = new Panel
@@ -3878,4 +4205,4 @@ namespace MyApps
         UpdatePictureBoxImage(resultBmp);
     }
     }
-}
+    }
